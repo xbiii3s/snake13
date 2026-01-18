@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Snake</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+    <div class="game-container">
+        <div class="ui-header">
+            <h1 class="logo">NEON <span class="highlight">SNAKE</span></h1>
+            <div class="score-board">
+                <div class="score-item">
+                    <span class="score-label">SCORE</span>
+                    <span id="score">0</span>
+                </div>
+                <div class="score-item">
+                    <span class="score-label">BEST</span>
+                    <span id="highScore">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+            <div id="startScreen" class="overlay">
+                <h2>READY?</h2>
+                <p>Use Arrow Keys to Move</p>
+                <button id="startBtn">START GAME</button>
+            </div>
+
+            <div id="gameOverScreen" class="overlay hidden">
+                <h2>GAME OVER</h2>
+                <p>Final Score: <span id="finalScore">0</span></p>
+                <button id="restartBtn">PLAY AGAIN</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
