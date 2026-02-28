@@ -218,6 +218,7 @@ impl ConversationRepo {
     }
 
     /// Update token totals for a conversation
+    #[allow(dead_code)]
     pub fn update_tokens(
         conn: &Connection,
         id: &str,

@@ -112,6 +112,7 @@ impl StdioTransport {
     }
 
     /// Check if the process is still running
+    #[allow(dead_code)]
     pub fn is_alive(&mut self) -> bool {
         self.child.try_wait().ok().flatten().is_none()
     }

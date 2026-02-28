@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::AppResult;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct UsageStat {
     pub date: String,
     pub model_id: String,
@@ -147,6 +148,7 @@ impl UsageRepo {
     }
 
     /// Get usage summary for a date range (legacy API)
+    #[allow(dead_code)]
     pub fn get_summary(
         conn: &Connection,
         from_date: &str,
@@ -172,6 +174,7 @@ impl UsageRepo {
     }
 
     /// Get daily usage for a date range (legacy API returning raw stats)
+    #[allow(dead_code)]
     pub fn get_daily(
         conn: &Connection,
         from_date: &str,

@@ -31,12 +31,14 @@ impl SettingsRepo {
     }
 
     /// Delete a setting
+    #[allow(dead_code)]
     pub fn delete(conn: &Connection, key: &str) -> AppResult<()> {
         conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?;
         Ok(())
     }
 
     /// Get all settings as key-value pairs
+    #[allow(dead_code)]
     pub fn get_all(conn: &Connection) -> AppResult<Vec<(String, String)>> {
         let mut stmt = conn.prepare("SELECT key, value FROM settings WHERE encrypted = 0")?;
         let rows = stmt.query_map([], |row| {

@@ -32,6 +32,7 @@ pub struct JsonRpcError {
 
 /// MCP Initialize request params
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct InitializeParams {
     #[serde(rename = "protocolVersion")]
     pub protocol_version: String,
@@ -41,12 +42,14 @@ pub struct InitializeParams {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ClientCapabilities {
     #[serde(default)]
     pub roots: Option<RootsCapability>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct RootsCapability {
     #[serde(rename = "listChanged", default)]
     pub list_changed: bool,

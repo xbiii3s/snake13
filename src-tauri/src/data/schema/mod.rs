@@ -2,7 +2,8 @@ use rusqlite::Connection;
 
 use crate::error::{AppError, AppResult};
 
-/// Current schema version
+/// Current schema version (referenced in migration logic)
+#[allow(dead_code)]
 const CURRENT_VERSION: i64 = 2;
 
 /// Run all pending database migrations

@@ -39,6 +39,7 @@ impl SecureStore {
     }
 
     /// Store a proxy credential
+    #[allow(dead_code)]
     pub fn set_proxy_credential(key: &str, value: &str) -> AppResult<()> {
         let entry = keyring::Entry::new(SERVICE_NAME, &format!("proxy_{key}"))
             .map_err(|e| AppError::Keychain(e.to_string()))?;
@@ -49,6 +50,7 @@ impl SecureStore {
     }
 
     /// Retrieve a proxy credential
+    #[allow(dead_code)]
     pub fn get_proxy_credential(key: &str) -> AppResult<Option<String>> {
         let entry = keyring::Entry::new(SERVICE_NAME, &format!("proxy_{key}"))
             .map_err(|e| AppError::Keychain(e.to_string()))?;

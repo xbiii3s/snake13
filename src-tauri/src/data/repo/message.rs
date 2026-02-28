@@ -155,6 +155,7 @@ impl MessageRepo {
     }
 
     /// Delete all messages in a conversation
+    #[allow(dead_code)]
     pub fn delete_by_conversation(conn: &Connection, conversation_id: &str) -> AppResult<()> {
         conn.execute(
             "DELETE FROM messages WHERE conversation_id = ?1",

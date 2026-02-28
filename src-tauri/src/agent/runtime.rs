@@ -6,7 +6,9 @@ use serde_json::Value;
 use crate::agent::security::PermissionManager;
 use crate::agent::tools::{PermissionLevel, ToolRegistry};
 
-/// Maximum number of tool-use rounds before stopping
+/// Maximum number of tool-use rounds before stopping.
+/// Referenced by the frontend agent loop to cap iterations.
+#[allow(dead_code)]
 pub const MAX_AGENT_ITERATIONS: usize = 10;
 
 /// Represents a tool use request from the model
