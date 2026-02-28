@@ -203,6 +203,17 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         },
       }));
 
+      // Record usage stats
+      if (lastUsage) {
+        ipc.usageRecord(
+          convId,
+          modelId,
+          lastUsage.input_tokens ?? 0,
+          lastUsage.output_tokens ?? 0,
+          lastUsage.cost ?? 0,
+        ).catch((err) => console.error("Failed to record usage:", err));
+      }
+
       // Auto-update conversation title if it's the first message
       const messages = get().messages[convId] ?? [];
       if (messages.length <= 2) {

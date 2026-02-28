@@ -1,5 +1,9 @@
-use serde::Serialize;
+use futures::StreamExt;
+use reqwest::header;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 /// Global cancellation flag for the current stream
 static CANCEL_FLAG: AtomicBool = AtomicBool::new(false);
@@ -148,6 +152,337 @@ pub async fn mock_stream(
             },
         })
         .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
+
+    Ok(())
+}
+
+// ===================== Claude API Types =====================
+
+#[derive(Serialize)]
+struct ApiRequest {
+    model: String,
+    max_tokens: u32,
+    stream: bool,
+    messages: Vec<ApiMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<ThinkingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Value>,
+}
+
+#[derive(Serialize)]
+pub struct ApiMessage {
+    pub role: String,
+    pub content: Value,
+}
+
+#[derive(Serialize)]
+struct ThinkingConfig {
+    #[serde(rename = "type")]
+    thinking_type: String,
+    budget_tokens: u32,
+}
+
+/// SSE event data structures for parsing Claude API responses
+#[derive(Deserialize)]
+struct SseMessageStart {
+    message: SseMessage,
+}
+
+#[derive(Deserialize)]
+struct SseMessage {
+    id: String,
+    usage: Option<SseUsage>,
+}
+
+#[derive(Deserialize)]
+struct SseUsage {
+    input_tokens: Option<u64>,
+    output_tokens: Option<u64>,
+}
+
+#[derive(Deserialize)]
+struct SseContentBlockStart {
+    content_block: SseContentBlock,
+}
+
+#[derive(Deserialize)]
+struct SseContentBlock {
+    #[serde(rename = "type")]
+    block_type: String,
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SseContentBlockDelta {
+    delta: SseDelta,
+}
+
+#[derive(Deserialize)]
+struct SseDelta {
+    #[serde(rename = "type")]
+    delta_type: String,
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(default)]
+    thinking: Option<String>,
+    #[serde(default)]
+    partial_json: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SseMessageDelta {
+    usage: Option<SseUsage>,
+}
+
+#[derive(Deserialize)]
+struct SseError {
+    error: SseErrorDetail,
+}
+
+#[derive(Deserialize)]
+struct SseErrorDetail {
+    #[serde(rename = "type")]
+    error_type: String,
+    message: String,
+}
+
+// ===================== Claude API Stream =====================
+
+/// Stream a real response from the Claude API
+pub async fn claude_stream(
+    channel: tauri::ipc::Channel<StreamEvent>,
+    api_key: &str,
+    model_id: &str,
+    messages: Vec<ApiMessage>,
+    system_prompt: Option<&str>,
+    enable_thinking: bool,
+    tools: Option<Value>,
+    max_tokens: Option<u32>,
+    proxy_url: Option<&str>,
+) -> crate::error::AppResult<()> {
+    reset_cancel();
+
+    let max_tokens = max_tokens.unwrap_or(8192);
+
+    // Build request body
+    let body = ApiRequest {
+        model: model_id.to_string(),
+        max_tokens,
+        stream: true,
+        messages,
+        system: system_prompt.map(|s| s.to_string()),
+        thinking: if enable_thinking {
+            Some(ThinkingConfig {
+                thinking_type: "enabled".to_string(),
+                budget_tokens: 4096,
+            })
+        } else {
+            None
+        },
+        tools,
+    };
+
+    // Build reqwest client (with optional proxy)
+    let mut client_builder = reqwest::Client::builder();
+    if let Some(proxy) = proxy_url {
+        if !proxy.is_empty() {
+            let reqwest_proxy = reqwest::Proxy::all(proxy)
+                .map_err(|e| crate::error::AppError::Internal(format!("Invalid proxy URL: {}", e)))?;
+            client_builder = client_builder.proxy(reqwest_proxy);
+        }
+    }
+    let client = client_builder
+        .build()
+        .map_err(|e| crate::error::AppError::Internal(format!("Failed to build HTTP client: {}", e)))?;
+
+    // Send request
+    let response = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header(header::CONTENT_TYPE, "application/json")
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&body)
+        .send()
+        .await?;
+
+    // Check for HTTP errors
+    let status = response.status();
+    if !status.is_success() {
+        let error_body = response.text().await.unwrap_or_default();
+        // Try to parse the error response
+        if let Ok(sse_err) = serde_json::from_str::<SseError>(&error_body) {
+            return Err(crate::error::AppError::Api {
+                status: status.as_u16(),
+                message: sse_err.error.message,
+            });
+        }
+        return Err(crate::error::AppError::Api {
+            status: status.as_u16(),
+            message: error_body,
+        });
+    }
+
+    // Process SSE stream
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+    let mut current_event_type = String::new();
+    let mut _message_id = String::new();
+    let mut input_tokens: u64 = 0;
+    let mut output_tokens: u64 = 0;
+    let mut thinking_start_time: Option<Instant> = None;
+    let mut current_block_type = String::new();
+
+    let send = |event: StreamEvent| -> crate::error::AppResult<()> {
+        channel
+            .send(event)
+            .map_err(|e| crate::error::AppError::Internal(e.to_string()))
+    };
+
+    while let Some(chunk_result) = stream.next().await {
+        if is_cancelled() {
+            return Err(crate::error::AppError::Cancelled);
+        }
+
+        let chunk = chunk_result?;
+        let chunk_str = String::from_utf8_lossy(&chunk);
+        buffer.push_str(&chunk_str);
+
+        // Process complete lines from the buffer
+        while let Some(newline_pos) = buffer.find('\n') {
+            let line = buffer[..newline_pos].trim_end_matches('\r').to_string();
+            buffer = buffer[newline_pos + 1..].to_string();
+
+            if line.is_empty() {
+                // Empty line = end of SSE event, process the accumulated event
+                continue;
+            }
+
+            if let Some(event_type) = line.strip_prefix("event: ") {
+                current_event_type = event_type.to_string();
+                continue;
+            }
+
+            if let Some(data) = line.strip_prefix("data: ") {
+                match current_event_type.as_str() {
+                    "message_start" => {
+                        if let Ok(msg_start) = serde_json::from_str::<SseMessageStart>(data) {
+                            _message_id = msg_start.message.id.clone();
+                            if let Some(usage) = msg_start.message.usage {
+                                input_tokens = usage.input_tokens.unwrap_or(0);
+                            }
+                            send(StreamEvent::MessageStart {
+                                message_id: _message_id.clone(),
+                            })?;
+                        }
+                    }
+                    "content_block_start" => {
+                        if let Ok(block_start) = serde_json::from_str::<SseContentBlockStart>(data) {
+                            current_block_type = block_start.content_block.block_type.clone();
+                            match current_block_type.as_str() {
+                                "thinking" => {
+                                    thinking_start_time = Some(Instant::now());
+                                    send(StreamEvent::ThinkingStart)?;
+                                }
+                                "text" => {
+                                    send(StreamEvent::ContentStart)?;
+                                }
+                                "tool_use" => {
+                                    let id = block_start.content_block.id.unwrap_or_default();
+                                    let name = block_start.content_block.name.unwrap_or_default();
+                                    send(StreamEvent::ToolUseStart { id, name })?;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    "content_block_delta" => {
+                        if let Ok(block_delta) = serde_json::from_str::<SseContentBlockDelta>(data) {
+                            match block_delta.delta.delta_type.as_str() {
+                                "thinking_delta" => {
+                                    if let Some(text) = block_delta.delta.thinking {
+                                        send(StreamEvent::ThinkingDelta { text })?;
+                                    }
+                                }
+                                "text_delta" => {
+                                    if let Some(text) = block_delta.delta.text {
+                                        send(StreamEvent::ContentDelta { text })?;
+                                    }
+                                }
+                                "input_json_delta" => {
+                                    if let Some(partial_json) = block_delta.delta.partial_json {
+                                        send(StreamEvent::ToolUseDelta { partial_json })?;
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    "content_block_stop" => {
+                        match current_block_type.as_str() {
+                            "thinking" => {
+                                let duration_ms = thinking_start_time
+                                    .map(|t| t.elapsed().as_millis() as u64)
+                                    .unwrap_or(0);
+                                thinking_start_time = None;
+                                send(StreamEvent::ThinkingStop { duration_ms })?;
+                            }
+                            "text" => {
+                                send(StreamEvent::ContentStop)?;
+                            }
+                            "tool_use" => {
+                                send(StreamEvent::ToolUseStop)?;
+                            }
+                            _ => {}
+                        }
+                        current_block_type.clear();
+                    }
+                    "message_delta" => {
+                        if let Ok(msg_delta) = serde_json::from_str::<SseMessageDelta>(data) {
+                            if let Some(usage) = msg_delta.usage {
+                                output_tokens = usage.output_tokens.unwrap_or(0);
+                            }
+                        }
+                    }
+                    "message_stop" => {
+                        let cost = calculate_cost(model_id, input_tokens, output_tokens);
+                        send(StreamEvent::MessageStop {
+                            usage: Usage {
+                                input_tokens,
+                                output_tokens,
+                                cost,
+                            },
+                        })?;
+                    }
+                    "error" => {
+                        if let Ok(err) = serde_json::from_str::<SseError>(data) {
+                            send(StreamEvent::Error {
+                                kind: err.error.error_type,
+                                message: err.error.message,
+                            })?;
+                        } else {
+                            send(StreamEvent::Error {
+                                kind: "unknown".to_string(),
+                                message: data.to_string(),
+                            })?;
+                        }
+                    }
+                    "ping" => {
+                        // Ping events are heartbeats, ignore them
+                    }
+                    _ => {
+                        log::debug!("Unknown SSE event type: {}", current_event_type);
+                    }
+                }
+                current_event_type.clear();
+            }
+        }
+    }
 
     Ok(())
 }

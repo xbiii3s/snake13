@@ -1,9 +1,9 @@
 use rusqlite::{params, Connection};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::AppResult;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageStat {
     pub date: String,
     pub model_id: String,
@@ -14,19 +14,27 @@ pub struct UsageStat {
     pub request_count: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageSummary {
-    pub total_tokens_in: i64,
-    pub total_tokens_out: i64,
+    pub model_id: String,
+    pub total_input_tokens: i64,
+    pub total_output_tokens: i64,
     pub total_cost: f64,
-    pub total_requests: i64,
-    pub by_model: Vec<UsageStat>,
+    pub message_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DailyUsage {
+    pub date: String,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost: f64,
 }
 
 pub struct UsageRepo;
 
 impl UsageRepo {
-    /// Record usage for a request
+    /// Record usage for a request (aggregates by date/model/source)
     pub fn record(
         conn: &Connection,
         model_id: &str,
@@ -48,61 +56,122 @@ impl UsageRepo {
         Ok(())
     }
 
-    /// Get usage summary for a date range
+    /// Record usage for a conversation message
+    pub fn record_message(
+        conn: &Connection,
+        _conversation_id: &str,
+        model_id: &str,
+        input_tokens: i64,
+        output_tokens: i64,
+        cost: f64,
+    ) -> AppResult<()> {
+        Self::record(conn, model_id, "chat", input_tokens, output_tokens, cost)
+    }
+
+    /// Get summary grouped by model for a date range
+    pub fn summary_by_model(
+        conn: &Connection,
+        from_date: &str,
+        to_date: &str,
+    ) -> AppResult<Vec<UsageSummary>> {
+        let mut stmt = conn.prepare(
+            "SELECT model_id, SUM(tokens_in), SUM(tokens_out), SUM(cost), SUM(request_count)
+             FROM usage_stats
+             WHERE date >= ?1 AND date <= ?2
+             GROUP BY model_id
+             ORDER BY SUM(cost) DESC",
+        )?;
+
+        let rows = stmt.query_map(params![from_date, to_date], |row| {
+            Ok(UsageSummary {
+                model_id: row.get(0)?,
+                total_input_tokens: row.get(1)?,
+                total_output_tokens: row.get(2)?,
+                total_cost: row.get(3)?,
+                message_count: row.get(4)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for r in rows {
+            result.push(r?);
+        }
+        Ok(result)
+    }
+
+    /// Get daily usage for a date range (aggregated across all models)
+    pub fn daily_usage(
+        conn: &Connection,
+        from_date: &str,
+        to_date: &str,
+    ) -> AppResult<Vec<DailyUsage>> {
+        let mut stmt = conn.prepare(
+            "SELECT date, SUM(tokens_in), SUM(tokens_out), SUM(cost)
+             FROM usage_stats
+             WHERE date >= ?1 AND date <= ?2
+             GROUP BY date
+             ORDER BY date ASC",
+        )?;
+
+        let rows = stmt.query_map(params![from_date, to_date], |row| {
+            Ok(DailyUsage {
+                date: row.get(0)?,
+                input_tokens: row.get(1)?,
+                output_tokens: row.get(2)?,
+                cost: row.get(3)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for r in rows {
+            result.push(r?);
+        }
+        Ok(result)
+    }
+
+    /// Get total usage stats across all time
+    pub fn total(conn: &Connection) -> AppResult<UsageSummary> {
+        let mut stmt = conn.prepare(
+            "SELECT COALESCE(SUM(tokens_in), 0), COALESCE(SUM(tokens_out), 0), COALESCE(SUM(cost), 0.0), COALESCE(SUM(request_count), 0) FROM usage_stats",
+        )?;
+        let summary = stmt.query_row([], |row| {
+            Ok(UsageSummary {
+                model_id: "all".to_string(),
+                total_input_tokens: row.get(0)?,
+                total_output_tokens: row.get(1)?,
+                total_cost: row.get(2)?,
+                message_count: row.get(3)?,
+            })
+        })?;
+        Ok(summary)
+    }
+
+    /// Get usage summary for a date range (legacy API)
     pub fn get_summary(
         conn: &Connection,
         from_date: &str,
         to_date: &str,
     ) -> AppResult<UsageSummary> {
         let mut stmt = conn.prepare(
-            "SELECT model_id, source,
-                    SUM(tokens_in) as total_in,
-                    SUM(tokens_out) as total_out,
-                    SUM(cost) as total_cost,
-                    SUM(request_count) as total_requests
+            "SELECT COALESCE(SUM(tokens_in), 0), COALESCE(SUM(tokens_out), 0), COALESCE(SUM(cost), 0.0), COALESCE(SUM(request_count), 0)
              FROM usage_stats
-             WHERE date >= ?1 AND date <= ?2
-             GROUP BY model_id, source
-             ORDER BY total_cost DESC",
+             WHERE date >= ?1 AND date <= ?2",
         )?;
 
-        let rows = stmt.query_map(params![from_date, to_date], |row| {
-            Ok(UsageStat {
-                date: String::new(),
-                model_id: row.get(0)?,
-                source: row.get(1)?,
-                tokens_in: row.get(2)?,
-                tokens_out: row.get(3)?,
-                cost: row.get(4)?,
-                request_count: row.get(5)?,
+        let summary = stmt.query_row(params![from_date, to_date], |row| {
+            Ok(UsageSummary {
+                model_id: "all".to_string(),
+                total_input_tokens: row.get(0)?,
+                total_output_tokens: row.get(1)?,
+                total_cost: row.get(2)?,
+                message_count: row.get(3)?,
             })
         })?;
 
-        let mut by_model = Vec::new();
-        let mut total_in = 0i64;
-        let mut total_out = 0i64;
-        let mut total_cost = 0.0f64;
-        let mut total_requests = 0i64;
-
-        for row in rows {
-            let stat = row?;
-            total_in += stat.tokens_in;
-            total_out += stat.tokens_out;
-            total_cost += stat.cost;
-            total_requests += stat.request_count;
-            by_model.push(stat);
-        }
-
-        Ok(UsageSummary {
-            total_tokens_in: total_in,
-            total_tokens_out: total_out,
-            total_cost,
-            total_requests,
-            by_model,
-        })
+        Ok(summary)
     }
 
-    /// Get daily usage for a date range
+    /// Get daily usage for a date range (legacy API returning raw stats)
     pub fn get_daily(
         conn: &Connection,
         from_date: &str,
@@ -132,5 +201,70 @@ impl UsageRepo {
             result.push(row?);
         }
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::test_connection;
+
+    #[test]
+    fn test_record_and_total() {
+        let conn = test_connection();
+        UsageRepo::record(&conn, "claude-sonnet-4-5", "chat", 100, 200, 0.003).unwrap();
+        UsageRepo::record(&conn, "claude-opus-4-6", "chat", 500, 300, 0.03).unwrap();
+        let total = UsageRepo::total(&conn).unwrap();
+        assert_eq!(total.total_input_tokens, 600);
+        assert_eq!(total.total_output_tokens, 500);
+        assert_eq!(total.message_count, 2);
+    }
+
+    #[test]
+    fn test_summary_by_model() {
+        let conn = test_connection();
+        UsageRepo::record(&conn, "claude-sonnet-4-5", "chat", 100, 200, 0.003).unwrap();
+        UsageRepo::record(&conn, "claude-sonnet-4-5", "chat", 150, 250, 0.004).unwrap();
+        UsageRepo::record(&conn, "claude-opus-4-6", "chat", 500, 300, 0.03).unwrap();
+        let summary = UsageRepo::summary_by_model(&conn, "2020-01-01", "2030-12-31").unwrap();
+        assert_eq!(summary.len(), 2);
+        // Opus should be first (higher cost)
+        assert_eq!(summary[0].model_id, "claude-opus-4-6");
+        assert_eq!(summary[0].total_input_tokens, 500);
+        // Sonnet aggregated
+        assert_eq!(summary[1].model_id, "claude-sonnet-4-5");
+        assert_eq!(summary[1].total_input_tokens, 250);
+        assert_eq!(summary[1].total_output_tokens, 450);
+        assert_eq!(summary[1].message_count, 2);
+    }
+
+    #[test]
+    fn test_empty_total() {
+        let conn = test_connection();
+        let total = UsageRepo::total(&conn).unwrap();
+        assert_eq!(total.total_input_tokens, 0);
+        assert_eq!(total.message_count, 0);
+    }
+
+    #[test]
+    fn test_daily_usage() {
+        let conn = test_connection();
+        UsageRepo::record(&conn, "claude-sonnet-4-5", "chat", 100, 200, 0.003).unwrap();
+        UsageRepo::record(&conn, "claude-opus-4-6", "chat", 500, 300, 0.03).unwrap();
+        let daily = UsageRepo::daily_usage(&conn, "2020-01-01", "2030-12-31").unwrap();
+        // Both records are on the same day (today), so should be 1 daily entry
+        assert_eq!(daily.len(), 1);
+        assert_eq!(daily[0].input_tokens, 600);
+        assert_eq!(daily[0].output_tokens, 500);
+    }
+
+    #[test]
+    fn test_record_message() {
+        let conn = test_connection();
+        UsageRepo::record_message(&conn, "conv1", "claude-sonnet-4-5", 100, 200, 0.003).unwrap();
+        let total = UsageRepo::total(&conn).unwrap();
+        assert_eq!(total.total_input_tokens, 100);
+        assert_eq!(total.total_output_tokens, 200);
+        assert_eq!(total.message_count, 1);
     }
 }

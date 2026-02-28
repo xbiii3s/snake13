@@ -1,15 +1,16 @@
 import { useState } from "react";
-import { X, Key, Globe, Palette, Keyboard, Bot, Settings, Plug } from "lucide-react";
+import { X, Key, Globe, Palette, Keyboard, Bot, Settings, Plug, BarChart3 } from "lucide-react";
 import { ApiConfig } from "./ApiConfig";
 import { ProxyConfig } from "./ProxyConfig";
 import { AppearanceConfig } from "./AppearanceConfig";
 import { McpConfig } from "./McpConfig";
+import { UsagePanel } from "./UsagePanel";
 
 interface Props {
   onClose: () => void;
 }
 
-type SettingsTab = "api" | "proxy" | "appearance" | "shortcuts" | "agent" | "mcp" | "general";
+type SettingsTab = "api" | "proxy" | "appearance" | "shortcuts" | "agent" | "mcp" | "usage" | "general";
 
 const TABS: Array<{ id: SettingsTab; label: string; icon: typeof Key }> = [
   { id: "api", label: "API", icon: Key },
@@ -18,6 +19,7 @@ const TABS: Array<{ id: SettingsTab; label: string; icon: typeof Key }> = [
   { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
   { id: "agent", label: "Agent", icon: Bot },
   { id: "mcp", label: "MCP", icon: Plug },
+  { id: "usage", label: "Usage", icon: BarChart3 },
   { id: "general", label: "General", icon: Settings },
 ];
 
@@ -66,6 +68,7 @@ export function SettingsPanel({ onClose }: Props) {
           {activeTab === "shortcuts" && <ShortcutsPlaceholder />}
           {activeTab === "agent" && <AgentPlaceholder />}
           {activeTab === "mcp" && <McpConfig />}
+          {activeTab === "usage" && <UsagePanel />}
           {activeTab === "general" && <GeneralPlaceholder />}
         </div>
       </div>

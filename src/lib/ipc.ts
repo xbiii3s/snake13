@@ -178,6 +178,27 @@ export async function agentDecidePermission(
   return invoke("agent_decide_permission", { toolName, decision });
 }
 
+// Agent Runtime: batch tool execution for multi-turn agent loop
+
+export interface ToolUseRequest {
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+export interface ToolResultItem {
+  result_type: string;
+  tool_use_id: string;
+  content: string;
+  is_error: boolean;
+}
+
+export async function agentExecuteTools(
+  toolCalls: ToolUseRequest[],
+): Promise<ToolResultItem[]> {
+  return invoke("agent_execute_tools", { toolCalls });
+}
+
 // ===================== Folders =====================
 
 export interface Folder {
@@ -211,6 +232,39 @@ export async function updateFolder(
 
 export async function deleteFolder(id: string): Promise<void> {
   return invoke("folder_delete", { id });
+}
+
+// ===================== Usage =====================
+
+export interface UsageSummary {
+  model_id: string;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cost: number;
+  message_count: number;
+}
+
+export interface DailyUsage {
+  date: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost: number;
+}
+
+export async function usageRecord(conversationId: string, modelId: string, inputTokens: number, outputTokens: number, cost: number): Promise<void> {
+  return invoke("usage_record", { conversationId, modelId, inputTokens, outputTokens, cost });
+}
+
+export async function usageSummary(fromDate: string, toDate: string): Promise<UsageSummary[]> {
+  return invoke("usage_summary", { fromDate, toDate });
+}
+
+export async function usageDaily(fromDate: string, toDate: string): Promise<DailyUsage[]> {
+  return invoke("usage_daily", { fromDate, toDate });
+}
+
+export async function usageTotal(): Promise<UsageSummary> {
+  return invoke("usage_total");
 }
 
 // ===================== Import/Export =====================

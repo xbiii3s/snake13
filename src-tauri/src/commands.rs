@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use serde_json::Value;
 use tauri::State;
 
-use crate::core::stream::{self, StreamEvent};
+use crate::core::stream::{self, ApiMessage, StreamEvent};
 use crate::data::repo::{
     conversation::{ConversationRepo, CreateConversation, UpdateConversation},
     message::{CreateMessage, MessageRepo},
@@ -103,7 +105,14 @@ pub async fn chat_send(
     enable_thinking: bool,
     on_event: tauri::ipc::Channel<StreamEvent>,
 ) -> AppResult<crate::data::repo::message::Message> {
-    // 1. Save user message
+    // 1. Check if API key is configured
+    let api_key = state.db.with_conn(|conn| SettingsRepo::get(conn, "api_key"))?;
+    let proxy_url = state.db.with_conn(|conn| SettingsRepo::get(conn, "proxy_url"))?;
+
+    // 2. Get conversation details (for system prompt)
+    let conversation = state.db.with_conn(|conn| ConversationRepo::get_by_id(conn, &conversation_id))?;
+
+    // 3. Save user message
     let user_msg = state.db.with_conn(|conn| {
         MessageRepo::create(
             conn,
@@ -124,35 +133,99 @@ pub async fn chat_send(
         )
     })?;
 
-    // 2. Stream mock response
-    stream::mock_stream(on_event.clone(), &model_id, &content, enable_thinking).await?;
+    // 4. Determine whether to use real API or mock
+    let has_api_key = api_key
+        .as_ref()
+        .map(|k| !k.trim().is_empty())
+        .unwrap_or(false);
 
-    // 3. Save assistant message (with mock content)
-    let assistant_msg = state.db.with_conn(|conn| {
-        MessageRepo::create(
-            conn,
-            &CreateMessage {
-                conversation_id: conversation_id.clone(),
-                parent_id: Some(user_msg.id.clone()),
-                role: "assistant".to_string(),
-                content: "[Mock response - see stream]".to_string(),
-                model_used: Some(model_id.clone()),
-                tokens_in: Some(150),
-                tokens_out: Some(200),
-                cost: Some(0.001),
-                thinking_content: if enable_thinking {
-                    Some("Mock thinking content".to_string())
-                } else {
-                    None
-                },
-                thinking_duration_ms: if enable_thinking { Some(2500) } else { None },
-                attachments: None,
-                tool_calls: None,
-            },
+    if has_api_key {
+        let api_key = api_key.unwrap();
+
+        // Build messages history from database
+        let db_messages = state
+            .db
+            .with_conn(|conn| MessageRepo::list_by_conversation(conn, &conversation_id))?;
+
+        let mut api_messages: Vec<ApiMessage> = Vec::new();
+        for msg in &db_messages {
+            // Only include user and assistant messages
+            if msg.role != "user" && msg.role != "assistant" {
+                continue;
+            }
+            api_messages.push(ApiMessage {
+                role: msg.role.clone(),
+                content: serde_json::Value::String(msg.content.clone()),
+            });
+        }
+
+        // Stream real API response
+        stream::claude_stream(
+            on_event.clone(),
+            &api_key,
+            &model_id,
+            api_messages,
+            conversation.system_prompt.as_deref(),
+            enable_thinking,
+            None, // tools
+            None, // max_tokens (defaults to 8192)
+            proxy_url.as_deref(),
         )
-    })?;
+        .await?;
 
-    Ok(assistant_msg)
+        // Save assistant message placeholder (content was streamed)
+        let assistant_msg = state.db.with_conn(|conn| {
+            MessageRepo::create(
+                conn,
+                &CreateMessage {
+                    conversation_id: conversation_id.clone(),
+                    parent_id: Some(user_msg.id.clone()),
+                    role: "assistant".to_string(),
+                    content: "[Streamed response]".to_string(),
+                    model_used: Some(model_id.clone()),
+                    tokens_in: None,
+                    tokens_out: None,
+                    cost: None,
+                    thinking_content: None,
+                    thinking_duration_ms: None,
+                    attachments: None,
+                    tool_calls: None,
+                },
+            )
+        })?;
+
+        Ok(assistant_msg)
+    } else {
+        // Fall back to mock stream
+        stream::mock_stream(on_event.clone(), &model_id, &content, enable_thinking).await?;
+
+        // Save assistant message (with mock content)
+        let assistant_msg = state.db.with_conn(|conn| {
+            MessageRepo::create(
+                conn,
+                &CreateMessage {
+                    conversation_id: conversation_id.clone(),
+                    parent_id: Some(user_msg.id.clone()),
+                    role: "assistant".to_string(),
+                    content: "[Mock response - see stream]".to_string(),
+                    model_used: Some(model_id.clone()),
+                    tokens_in: Some(150),
+                    tokens_out: Some(200),
+                    cost: Some(0.001),
+                    thinking_content: if enable_thinking {
+                        Some("Mock thinking content".to_string())
+                    } else {
+                        None
+                    },
+                    thinking_duration_ms: if enable_thinking { Some(2500) } else { None },
+                    attachments: None,
+                    tool_calls: None,
+                },
+            )
+        })?;
+
+        Ok(assistant_msg)
+    }
 }
 
 // ===================== Chat Cancel Command =====================
@@ -270,6 +343,19 @@ pub fn agent_decide_permission(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn agent_execute_tools(
+    state: State<'_, AppState>,
+    tool_calls: Vec<crate::agent::runtime::ToolUseRequest>,
+) -> AppResult<Vec<crate::agent::runtime::ToolResult>> {
+    let runtime = crate::agent::runtime::AgentRuntime::new(
+        Arc::clone(&state.tools),
+        Arc::clone(&state.permissions),
+    );
+    let results = runtime.execute_tools(&tool_calls).await;
+    Ok(results)
+}
+
 // ===================== Folder Commands =====================
 
 #[tauri::command]
@@ -297,6 +383,49 @@ pub fn folder_update(
 #[tauri::command]
 pub fn folder_delete(state: State<'_, AppState>, id: String) -> AppResult<()> {
     state.db.with_conn(|conn| crate::data::repo::folder::FolderRepo::delete(conn, &id))
+}
+
+// ===================== Usage Commands =====================
+
+#[tauri::command]
+pub fn usage_record(
+    state: State<'_, AppState>,
+    conversation_id: String,
+    model_id: String,
+    input_tokens: i64,
+    output_tokens: i64,
+    cost: f64,
+) -> AppResult<()> {
+    state.db.with_conn(|conn| {
+        crate::data::repo::usage::UsageRepo::record_message(conn, &conversation_id, &model_id, input_tokens, output_tokens, cost)
+    })
+}
+
+#[tauri::command]
+pub fn usage_summary(
+    state: State<'_, AppState>,
+    from_date: String,
+    to_date: String,
+) -> AppResult<Vec<crate::data::repo::usage::UsageSummary>> {
+    state.db.with_conn(|conn| {
+        crate::data::repo::usage::UsageRepo::summary_by_model(conn, &from_date, &to_date)
+    })
+}
+
+#[tauri::command]
+pub fn usage_daily(
+    state: State<'_, AppState>,
+    from_date: String,
+    to_date: String,
+) -> AppResult<Vec<crate::data::repo::usage::DailyUsage>> {
+    state.db.with_conn(|conn| {
+        crate::data::repo::usage::UsageRepo::daily_usage(conn, &from_date, &to_date)
+    })
+}
+
+#[tauri::command]
+pub fn usage_total(state: State<'_, AppState>) -> AppResult<crate::data::repo::usage::UsageSummary> {
+    state.db.with_conn(|conn| crate::data::repo::usage::UsageRepo::total(conn))
 }
 
 // ===================== Import/Export Commands =====================
