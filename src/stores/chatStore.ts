@@ -203,6 +203,14 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         },
       }));
 
+      // Send desktop notification when response is complete and window is not focused
+      if (!document.hasFocus()) {
+        ipc.sendNotification(
+          "Claude Desktop Pro",
+          `Response complete: ${streaming.contentText.slice(0, 100)}${streaming.contentText.length > 100 ? "..." : ""}`,
+        ).catch(() => {});
+      }
+
       // Record usage stats
       if (lastUsage) {
         ipc.usageRecord(

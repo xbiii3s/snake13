@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 import { useChatStore } from "@/stores/chatStore";
 import { useAgentStore } from "@/stores/agentStore";
-import { MessageBubble } from "./MessageBubble";
+import { VirtualMessageBubble } from "./VirtualMessageBubble";
 import { StreamRenderer } from "./StreamRenderer";
 import { MessageInput } from "./MessageInput";
 import { ToolCallCard } from "@/app/agent/ToolCallCard";
 import { MessageSquare } from "lucide-react";
+import { TemplatePicker } from "@/app/templates/TemplatePicker";
+import { useVirtualMessages } from "@/hooks/useVirtualMessages";
 
 export function ChatWindow() {
   const activeConversationId = useChatStore((s) => s.activeConversationId);
@@ -15,6 +17,16 @@ export function ChatWindow() {
   const isStreaming = useChatStore((s) => s.isStreaming);
   const agentCalls = useAgentStore((s) => s.activeCalls);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const {
+    visibleMessages,
+    topPadding,
+    bottomPadding,
+    measureMessage,
+    isVirtualized,
+    totalCount,
+    renderedCount,
+  } = useVirtualMessages(messages, scrollRef);
 
   // Auto-scroll to bottom when new messages or streaming content arrives
   useEffect(() => {
@@ -46,9 +58,19 @@ export function ChatWindow() {
             </div>
           )}
 
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
+          {/* Virtual scroll top spacer */}
+          {topPadding > 0 && <div style={{ height: topPadding }} />}
+
+          {visibleMessages.map((msg) => (
+            <VirtualMessageBubble
+              key={msg.id}
+              message={msg}
+              onMeasure={measureMessage}
+            />
           ))}
+
+          {/* Virtual scroll bottom spacer */}
+          {bottomPadding > 0 && <div style={{ height: bottomPadding }} />}
 
           {/* Agent tool calls */}
           {agentCalls.length > 0 && (
@@ -63,8 +85,13 @@ export function ChatWindow() {
         </div>
       </div>
 
-      {/* Input */}
+      {/* Input + virtual scroll indicator */}
       <MessageInput />
+      {isVirtualized && (
+        <div className="text-center text-[10px] text-text-muted pb-1">
+          Showing {renderedCount} of {totalCount} messages
+        </div>
+      )}
     </div>
   );
 }
@@ -88,6 +115,10 @@ function EmptyState() {
         >
           Start a conversation
         </button>
+
+        <div className="mt-8">
+          <TemplatePicker />
+        </div>
       </div>
     </div>
   );

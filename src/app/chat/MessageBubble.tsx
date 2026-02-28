@@ -1,7 +1,9 @@
 import { useState } from "react";
 import type { Message } from "@/types/message";
 import { MarkdownRenderer } from "./MarkdownRenderer";
-import { Copy, Check, ChevronDown, ChevronRight, Brain, User, Bot } from "lucide-react";
+import { Copy, Check, ChevronDown, ChevronRight, Brain, User, Bot, GitBranch } from "lucide-react";
+import { useChatStore } from "@/stores/chatStore";
+import * as ipc from "@/lib/ipc";
 
 interface Props {
   message: Message;
@@ -76,6 +78,18 @@ export function MessageBubble({ message }: Props) {
             title="Copy"
           >
             {copied ? <Check size={12} /> : <Copy size={12} />}
+          </button>
+
+          <button
+            onClick={async () => {
+              const forked = await ipc.forkConversation(message.conversation_id, message.id);
+              useChatStore.getState().loadConversations();
+              useChatStore.getState().setActiveConversation(forked.id);
+            }}
+            className="text-text-muted hover:text-text-secondary transition-colors p-1"
+            title="Fork from here"
+          >
+            <GitBranch size={12} />
           </button>
 
           {!isUser && message.tokens_out > 0 && (

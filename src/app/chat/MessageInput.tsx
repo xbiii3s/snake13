@@ -1,16 +1,46 @@
-import { useState, useRef, useCallback, type KeyboardEvent } from "react";
+import { useState, useRef, useCallback, type KeyboardEvent, type DragEvent } from "react";
 import { useChatStore } from "@/stores/chatStore";
 import { useAgentStore } from "@/stores/agentStore";
 import { MODELS } from "@/types/model";
-import { Send, Square, ChevronDown, Brain } from "lucide-react";
+import { Send, Square, ChevronDown, Brain, Paperclip, X, Image, FileText } from "lucide-react";
 import { AgentToggle } from "@/app/agent/AgentToggle";
+import type { Attachment } from "@/types/message";
+
+/** Max file size: 10MB */
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const SUPPORTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+function fileToAttachment(file: File): Promise<Attachment> {
+  return new Promise((resolve, reject) => {
+    if (file.size > MAX_FILE_SIZE) {
+      reject(new Error(`File "${file.name}" exceeds 10MB limit`));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(",")[1] ?? "";
+      resolve({
+        type: SUPPORTED_IMAGE_TYPES.includes(file.type) ? "image" : "file",
+        name: file.name,
+        mime_type: file.type || "application/octet-stream",
+        data: base64,
+        size: file.size,
+      });
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
 
 export function MessageInput() {
   const [text, setText] = useState("");
   const [modelId, setModelId] = useState("claude-sonnet-4-5");
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [enableThinking, setEnableThinking] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const agentEnabled = useAgentStore((s) => s.enabled);
   const setAgentEnabled = useAgentStore((s) => s.setEnabled);
@@ -21,15 +51,70 @@ export function MessageInput() {
 
   const selectedModel = MODELS.find((m) => m.id === modelId) ?? MODELS[1]!;
 
+  const addFiles = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const newAttachments: Attachment[] = [];
+    for (const file of fileArray) {
+      try {
+        const att = await fileToAttachment(file);
+        newAttachments.push(att);
+      } catch (err) {
+        console.error("Failed to process file:", err);
+      }
+    }
+    if (newAttachments.length > 0) {
+      setAttachments((prev) => [...prev, ...newAttachments]);
+    }
+  }, []);
+
+  const removeAttachment = useCallback((index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleDragOver = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      if (e.dataTransfer.files.length > 0) {
+        addFiles(e.dataTransfer.files);
+      }
+    },
+    [addFiles],
+  );
+
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
-    if (!trimmed || isStreaming) return;
-    sendMessage(trimmed, modelId, enableThinking);
+    if ((!trimmed && attachments.length === 0) || isStreaming) return;
+    // Include attachment info in the message content
+    let messageContent = trimmed;
+    if (attachments.length > 0) {
+      const fileList = attachments
+        .map((a) => `[${a.type === "image" ? "Image" : "File"}: ${a.name} (${(a.size / 1024).toFixed(1)}KB)]`)
+        .join("\n");
+      messageContent = messageContent
+        ? `${messageContent}\n\n${fileList}`
+        : fileList;
+    }
+    sendMessage(messageContent, modelId, enableThinking);
     setText("");
+    setAttachments([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [text, modelId, enableThinking, isStreaming, sendMessage]);
+  }, [text, attachments, modelId, enableThinking, isStreaming, sendMessage]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -47,8 +132,62 @@ export function MessageInput() {
   };
 
   return (
-    <div className="p-4 border-t border-border">
+    <div
+      className={`p-4 border-t transition-colors ${isDragging ? "border-accent bg-accent/5" : "border-border"}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="image/*,.pdf,.txt,.md,.json,.csv,.xml,.html,.js,.ts,.py,.rs,.go,.java,.c,.cpp,.h"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files) addFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+
+      {/* Drag overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-bg-primary/80 border-2 border-dashed border-accent rounded-[var(--radius-md)] pointer-events-none">
+          <div className="text-center">
+            <Image size={32} className="text-accent mx-auto mb-2" />
+            <p className="text-sm font-medium text-accent">Drop files here</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
+        {/* Attachment previews */}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-1">
+            {attachments.map((att, idx) => (
+              <div
+                key={`${att.name}-${idx}`}
+                className="flex items-center gap-1.5 bg-bg-elevated border border-border rounded-[var(--radius-sm)] px-2 py-1 text-xs group"
+              >
+                {att.type === "image" ? (
+                  <Image size={12} className="text-accent flex-shrink-0" />
+                ) : (
+                  <FileText size={12} className="text-text-muted flex-shrink-0" />
+                )}
+                <span className="text-text-secondary truncate max-w-[120px]">{att.name}</span>
+                <span className="text-text-muted">({(att.size / 1024).toFixed(0)}KB)</span>
+                <button
+                  onClick={() => removeAttachment(idx)}
+                  className="text-text-muted hover:text-error transition-colors ml-0.5"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Input area */}
         <div className="flex items-end gap-2 bg-bg-elevated rounded-[var(--radius-md)] p-3">
           <textarea
@@ -73,7 +212,7 @@ export function MessageInput() {
           ) : (
             <button
               onClick={handleSend}
-              disabled={!text.trim()}
+              disabled={!text.trim() && attachments.length === 0}
               className="p-2 rounded-[var(--radius-sm)] bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               title="Send message"
             >
@@ -85,6 +224,15 @@ export function MessageInput() {
         {/* Bottom toolbar */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
+            {/* Attach file button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors px-2 py-1 rounded hover:bg-bg-hover"
+              title="Attach files"
+            >
+              <Paperclip size={12} />
+            </button>
+
             {/* Model selector */}
             <div className="relative">
               <button

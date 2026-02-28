@@ -101,6 +101,12 @@ pub fn run() {
             commands::usage_total,
             commands::export_conversation,
             commands::import_conversation,
+            commands::template_create,
+            commands::template_list,
+            commands::template_update,
+            commands::template_delete,
+            commands::conversation_fork,
+            commands::send_notification,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

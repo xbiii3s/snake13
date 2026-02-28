@@ -3,7 +3,7 @@ use rusqlite::Connection;
 use crate::error::{AppError, AppResult};
 
 /// Current schema version
-const CURRENT_VERSION: i64 = 1;
+const CURRENT_VERSION: i64 = 2;
 
 /// Run all pending database migrations
 pub fn run_migrations(conn: &Connection) -> AppResult<()> {
@@ -11,6 +11,10 @@ pub fn run_migrations(conn: &Connection) -> AppResult<()> {
 
     if current < 1 {
         migrate_v1(conn)?;
+    }
+
+    if current < 2 {
+        migrate_v2(conn)?;
     }
 
     Ok(())
@@ -167,6 +171,29 @@ fn migrate_v1(conn: &Connection) -> AppResult<()> {
     )
     .map_err(|e| AppError::Internal(format!("Migration v1 failed: {e}")))?;
 
-    log::info!("Database migrated to version {CURRENT_VERSION}");
+    log::info!("Database migrated to version 1");
+    Ok(())
+}
+
+/// Migration v2 — templates table
+fn migrate_v2(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch("
+        CREATE TABLE IF NOT EXISTS templates (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            system_prompt TEXT NOT NULL,
+            model_id TEXT NOT NULL DEFAULT 'claude-sonnet-4-5',
+            enable_thinking INTEGER NOT NULL DEFAULT 0,
+            agent_mode INTEGER NOT NULL DEFAULT 0,
+            icon TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+            updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+        );
+
+        INSERT INTO _schema_version (version) VALUES (2);
+    ").map_err(|e| AppError::Internal(format!("Migration v2 failed: {e}")))?;
+    log::info!("Database migrated to version 2");
     Ok(())
 }

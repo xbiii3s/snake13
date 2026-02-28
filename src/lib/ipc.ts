@@ -279,3 +279,57 @@ export async function exportConversation(
 export async function importConversation(jsonData: string): Promise<Conversation> {
   return invoke("import_conversation", { jsonData });
 }
+
+// ===================== Templates =====================
+
+export interface Template {
+  id: string;
+  name: string;
+  description: string;
+  system_prompt: string;
+  model_id: string;
+  enable_thinking: boolean;
+  agent_mode: boolean;
+  icon: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateTemplate {
+  name: string;
+  description?: string;
+  system_prompt: string;
+  model_id?: string;
+  enable_thinking?: boolean;
+  agent_mode?: boolean;
+  icon?: string;
+}
+
+export async function templateCreate(input: CreateTemplate): Promise<Template> {
+  return invoke("template_create", { input });
+}
+
+export async function templateList(): Promise<Template[]> {
+  return invoke("template_list");
+}
+
+export async function templateUpdate(id: string, input: Partial<CreateTemplate> & { sort_order?: number }): Promise<Template> {
+  return invoke("template_update", { id, input });
+}
+
+export async function templateDelete(id: string): Promise<void> {
+  return invoke("template_delete", { id });
+}
+
+// ===================== Conversation Fork =====================
+
+export async function forkConversation(conversationId: string, fromMessageId: string): Promise<Conversation> {
+  return invoke("conversation_fork", { conversationId, fromMessageId });
+}
+
+// ===================== Desktop Notifications =====================
+
+export async function sendNotification(title: string, body: string): Promise<void> {
+  return invoke("send_notification", { title, body });
+}

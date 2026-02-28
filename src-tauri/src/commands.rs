@@ -8,6 +8,7 @@ use crate::data::repo::{
     conversation::{ConversationRepo, CreateConversation, UpdateConversation},
     message::{CreateMessage, MessageRepo},
     settings::SettingsRepo,
+    template::TemplateRepo,
 };
 use crate::error::AppResult;
 use crate::mcp::manager::{McpServerConfig, McpServerInfo};
@@ -517,4 +518,105 @@ pub fn import_conversation(
 
         Ok(conv)
     })
+}
+
+// ===================== Template Commands =====================
+
+/// Create a new conversation template
+#[tauri::command]
+pub fn template_create(
+    state: State<'_, AppState>,
+    input: crate::data::repo::template::CreateTemplate,
+) -> AppResult<crate::data::repo::template::Template> {
+    state.db.with_conn(|conn| TemplateRepo::create(conn, &input))
+}
+
+/// List all conversation templates
+#[tauri::command]
+pub fn template_list(state: State<'_, AppState>) -> AppResult<Vec<crate::data::repo::template::Template>> {
+    state.db.with_conn(|conn| TemplateRepo::list(conn))
+}
+
+/// Update an existing template
+#[tauri::command]
+pub fn template_update(
+    state: State<'_, AppState>,
+    id: String,
+    input: crate::data::repo::template::UpdateTemplate,
+) -> AppResult<crate::data::repo::template::Template> {
+    state.db.with_conn(|conn| TemplateRepo::update(conn, &id, &input))
+}
+
+/// Delete a template by ID
+#[tauri::command]
+pub fn template_delete(state: State<'_, AppState>, id: String) -> AppResult<()> {
+    state.db.with_conn(|conn| TemplateRepo::delete(conn, &id))
+}
+
+// ===================== Conversation Fork Command =====================
+
+/// Fork a conversation from a specific message, copying all messages up to and including the target
+#[tauri::command]
+pub fn conversation_fork(
+    state: State<'_, AppState>,
+    conversation_id: String,
+    from_message_id: String,
+) -> AppResult<crate::data::repo::conversation::Conversation> {
+    state.db.with_conn(|conn| {
+        // Get the original conversation
+        let orig = ConversationRepo::get_by_id(conn, &conversation_id)?;
+
+        // Create a new conversation based on the original
+        let forked = ConversationRepo::create(conn, &CreateConversation {
+            title: Some(format!("{} (fork)", orig.title)),
+            model_id: Some(orig.model_id.clone()),
+            system_prompt: orig.system_prompt.clone(),
+            folder_id: orig.folder_id.clone(),
+            agent_mode: Some(orig.agent_mode),
+        })?;
+
+        // Copy messages up to and including from_message_id
+        let messages = MessageRepo::list_by_conversation(conn, &conversation_id)?;
+        for msg in &messages {
+            MessageRepo::create(conn, &CreateMessage {
+                conversation_id: forked.id.clone(),
+                parent_id: None,
+                role: msg.role.clone(),
+                content: msg.content.clone(),
+                model_used: msg.model_used.clone(),
+                tokens_in: Some(msg.tokens_in),
+                tokens_out: Some(msg.tokens_out),
+                cost: Some(msg.cost),
+                thinking_content: msg.thinking_content.clone(),
+                thinking_duration_ms: Some(msg.thinking_duration_ms.unwrap_or(0)),
+                attachments: None,
+                tool_calls: None,
+            })?;
+            // Stop after copying the target message
+            if msg.id == from_message_id {
+                break;
+            }
+        }
+
+        Ok(forked)
+    })
+}
+
+// ===================== Desktop Notification Command =====================
+
+/// Send a macOS desktop notification
+#[tauri::command]
+pub async fn send_notification(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+) -> AppResult<()> {
+    use tauri_plugin_notification::NotificationExt;
+    app.notification()
+        .builder()
+        .title(&title)
+        .body(&body)
+        .show()
+        .map_err(|e| crate::error::AppError::Internal(format!("Notification failed: {}", e)))?;
+    Ok(())
 }
