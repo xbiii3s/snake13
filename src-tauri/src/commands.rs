@@ -1,0 +1,391 @@
+use serde_json::Value;
+use tauri::State;
+
+use crate::core::stream::{self, StreamEvent};
+use crate::data::repo::{
+    conversation::{ConversationRepo, CreateConversation, UpdateConversation},
+    message::{CreateMessage, MessageRepo},
+    settings::SettingsRepo,
+};
+use crate::error::AppResult;
+use crate::mcp::manager::{McpServerConfig, McpServerInfo};
+use crate::AppState;
+
+/// Temporary greeting command for testing IPC
+#[tauri::command]
+pub fn greet(name: &str) -> String {
+    format!("Hello, {}! Welcome to Claude Desktop Pro.", name)
+}
+
+// ===================== Conversation Commands =====================
+
+#[tauri::command]
+pub fn conversation_create(
+    state: State<'_, AppState>,
+    input: CreateConversation,
+) -> AppResult<crate::data::repo::conversation::Conversation> {
+    state.db.with_conn(|conn| ConversationRepo::create(conn, &input))
+}
+
+#[tauri::command]
+pub fn conversation_list(
+    state: State<'_, AppState>,
+    include_archived: Option<bool>,
+) -> AppResult<Vec<crate::data::repo::conversation::Conversation>> {
+    state
+        .db
+        .with_conn(|conn| ConversationRepo::list(conn, include_archived.unwrap_or(false)))
+}
+
+#[tauri::command]
+pub fn conversation_get(
+    state: State<'_, AppState>,
+    id: String,
+) -> AppResult<crate::data::repo::conversation::Conversation> {
+    state.db.with_conn(|conn| ConversationRepo::get_by_id(conn, &id))
+}
+
+#[tauri::command]
+pub fn conversation_update(
+    state: State<'_, AppState>,
+    id: String,
+    input: UpdateConversation,
+) -> AppResult<crate::data::repo::conversation::Conversation> {
+    state
+        .db
+        .with_conn(|conn| ConversationRepo::update(conn, &id, &input))
+}
+
+#[tauri::command]
+pub fn conversation_delete(state: State<'_, AppState>, id: String) -> AppResult<()> {
+    state.db.with_conn(|conn| ConversationRepo::delete(conn, &id))
+}
+
+// ===================== Message Commands =====================
+
+#[tauri::command]
+pub fn message_create(
+    state: State<'_, AppState>,
+    input: CreateMessage,
+) -> AppResult<crate::data::repo::message::Message> {
+    state.db.with_conn(|conn| MessageRepo::create(conn, &input))
+}
+
+#[tauri::command]
+pub fn message_list(
+    state: State<'_, AppState>,
+    conversation_id: String,
+) -> AppResult<Vec<crate::data::repo::message::Message>> {
+    state
+        .db
+        .with_conn(|conn| MessageRepo::list_by_conversation(conn, &conversation_id))
+}
+
+#[tauri::command]
+pub fn message_search(
+    state: State<'_, AppState>,
+    query: String,
+    limit: Option<i64>,
+) -> AppResult<Vec<crate::data::repo::message::SearchResult>> {
+    state
+        .db
+        .with_conn(|conn| MessageRepo::search(conn, &query, limit.unwrap_or(20)))
+}
+
+// ===================== Chat Stream Command =====================
+
+#[tauri::command]
+pub async fn chat_send(
+    state: State<'_, AppState>,
+    conversation_id: String,
+    content: String,
+    model_id: String,
+    enable_thinking: bool,
+    on_event: tauri::ipc::Channel<StreamEvent>,
+) -> AppResult<crate::data::repo::message::Message> {
+    // 1. Save user message
+    let user_msg = state.db.with_conn(|conn| {
+        MessageRepo::create(
+            conn,
+            &CreateMessage {
+                conversation_id: conversation_id.clone(),
+                parent_id: None,
+                role: "user".to_string(),
+                content: content.clone(),
+                model_used: None,
+                tokens_in: None,
+                tokens_out: None,
+                cost: None,
+                thinking_content: None,
+                thinking_duration_ms: None,
+                attachments: None,
+                tool_calls: None,
+            },
+        )
+    })?;
+
+    // 2. Stream mock response
+    stream::mock_stream(on_event.clone(), &model_id, &content, enable_thinking).await?;
+
+    // 3. Save assistant message (with mock content)
+    let assistant_msg = state.db.with_conn(|conn| {
+        MessageRepo::create(
+            conn,
+            &CreateMessage {
+                conversation_id: conversation_id.clone(),
+                parent_id: Some(user_msg.id.clone()),
+                role: "assistant".to_string(),
+                content: "[Mock response - see stream]".to_string(),
+                model_used: Some(model_id.clone()),
+                tokens_in: Some(150),
+                tokens_out: Some(200),
+                cost: Some(0.001),
+                thinking_content: if enable_thinking {
+                    Some("Mock thinking content".to_string())
+                } else {
+                    None
+                },
+                thinking_duration_ms: if enable_thinking { Some(2500) } else { None },
+                attachments: None,
+                tool_calls: None,
+            },
+        )
+    })?;
+
+    Ok(assistant_msg)
+}
+
+// ===================== Chat Cancel Command =====================
+
+#[tauri::command]
+pub fn chat_cancel() {
+    stream::request_cancel();
+}
+
+// ===================== Settings Commands =====================
+
+#[tauri::command]
+pub fn settings_get(state: State<'_, AppState>, key: String) -> AppResult<Option<String>> {
+    state.db.with_conn(|conn| SettingsRepo::get(conn, &key))
+}
+
+#[tauri::command]
+pub fn settings_set(state: State<'_, AppState>, key: String, value: String) -> AppResult<()> {
+    state
+        .db
+        .with_conn(|conn| SettingsRepo::set(conn, &key, &value))
+}
+
+// ===================== MCP Commands =====================
+
+#[tauri::command]
+pub async fn mcp_add_server(state: State<'_, AppState>, config: McpServerConfig) -> AppResult<()> {
+    state.mcp.add_server(config).await;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn mcp_remove_server(state: State<'_, AppState>, id: String) -> AppResult<()> {
+    state.mcp.remove_server(&id).await
+}
+
+#[tauri::command]
+pub async fn mcp_connect(state: State<'_, AppState>, id: String) -> AppResult<()> {
+    state.mcp.connect(&id).await
+}
+
+#[tauri::command]
+pub async fn mcp_disconnect(state: State<'_, AppState>, id: String) -> AppResult<()> {
+    state.mcp.disconnect(&id).await
+}
+
+#[tauri::command]
+pub async fn mcp_list_servers(state: State<'_, AppState>) -> AppResult<Vec<McpServerInfo>> {
+    Ok(state.mcp.list_servers().await)
+}
+
+#[tauri::command]
+pub async fn mcp_call_tool(
+    state: State<'_, AppState>,
+    server_id: String,
+    tool_name: String,
+    arguments: Value,
+) -> AppResult<Value> {
+    let result = state.mcp.call_tool(&server_id, &tool_name, arguments).await?;
+    serde_json::to_value(result).map_err(|e| crate::error::AppError::Internal(e.to_string()))
+}
+
+#[tauri::command]
+pub async fn mcp_import_config(
+    state: State<'_, AppState>,
+    json_config: String,
+) -> AppResult<Vec<McpServerConfig>> {
+    let configs = crate::mcp::manager::McpManager::parse_claude_config(&json_config)?;
+    for config in &configs {
+        state.mcp.add_server(config.clone()).await;
+    }
+    Ok(configs)
+}
+
+// ===================== Agent Commands =====================
+
+#[tauri::command]
+pub fn agent_list_tools(state: State<'_, AppState>) -> AppResult<Vec<crate::agent::tools::ToolDefinition>> {
+    Ok(state.tools.definitions())
+}
+
+#[tauri::command]
+pub async fn agent_execute_tool(
+    state: State<'_, AppState>,
+    tool_name: String,
+    input: Value,
+) -> AppResult<crate::agent::tools::ToolOutput> {
+    // Check permission first
+    let tool = state.tools.get(&tool_name)
+        .ok_or_else(|| crate::error::AppError::NotFound(format!("Tool '{}' not found", tool_name)))?;
+
+    let level = state.permissions.check(&tool_name, tool.permission_level())
+        .map_err(|e| crate::error::AppError::PermissionDenied(e.to_string()))?;
+
+    // If approval needed, return error (frontend should show approval dialog)
+    if level == crate::agent::tools::PermissionLevel::Approval {
+        return Err(crate::error::AppError::PermissionDenied(
+            format!("Tool '{}' requires approval", tool_name)
+        ));
+    }
+
+    let output = tool.execute(input).await
+        .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
+
+    Ok(output)
+}
+
+#[tauri::command]
+pub fn agent_decide_permission(
+    state: State<'_, AppState>,
+    tool_name: String,
+    decision: crate::agent::security::PermissionDecision,
+) -> AppResult<()> {
+    state.permissions.apply_decision(&tool_name, decision);
+    Ok(())
+}
+
+// ===================== Folder Commands =====================
+
+#[tauri::command]
+pub fn folder_create(
+    state: State<'_, AppState>,
+    input: crate::data::repo::folder::CreateFolder,
+) -> AppResult<crate::data::repo::folder::Folder> {
+    state.db.with_conn(|conn| crate::data::repo::folder::FolderRepo::create(conn, &input))
+}
+
+#[tauri::command]
+pub fn folder_list(state: State<'_, AppState>) -> AppResult<Vec<crate::data::repo::folder::Folder>> {
+    state.db.with_conn(|conn| crate::data::repo::folder::FolderRepo::list(conn))
+}
+
+#[tauri::command]
+pub fn folder_update(
+    state: State<'_, AppState>,
+    id: String,
+    input: crate::data::repo::folder::UpdateFolder,
+) -> AppResult<crate::data::repo::folder::Folder> {
+    state.db.with_conn(|conn| crate::data::repo::folder::FolderRepo::update(conn, &id, &input))
+}
+
+#[tauri::command]
+pub fn folder_delete(state: State<'_, AppState>, id: String) -> AppResult<()> {
+    state.db.with_conn(|conn| crate::data::repo::folder::FolderRepo::delete(conn, &id))
+}
+
+// ===================== Import/Export Commands =====================
+
+#[tauri::command]
+pub fn export_conversation(
+    state: State<'_, AppState>,
+    conversation_id: String,
+    format: String,
+) -> AppResult<String> {
+    state.db.with_conn(|conn| {
+        let conv = ConversationRepo::get_by_id(conn, &conversation_id)?;
+        let msgs = MessageRepo::list_by_conversation(conn, &conversation_id)?;
+
+        match format.as_str() {
+            "markdown" => {
+                let mut md = format!("# {}\n\n", conv.title);
+                md.push_str(&format!("*Model: {} | Created: {}*\n\n---\n\n", conv.model_id, conv.created_at));
+                for msg in &msgs {
+                    let role_label = if msg.role == "user" { "**You**" } else { "**Claude**" };
+                    md.push_str(&format!("### {}\n\n{}\n\n", role_label, msg.content));
+                }
+                Ok(md)
+            }
+            _ => {
+                // JSON format (default)
+                let export = serde_json::json!({
+                    "version": "1.0",
+                    "conversation": conv,
+                    "messages": msgs,
+                    "exported_at": chrono::Utc::now().to_rfc3339(),
+                });
+                serde_json::to_string_pretty(&export)
+                    .map_err(|e| crate::error::AppError::Internal(e.to_string()))
+            }
+        }
+    })
+}
+
+#[tauri::command]
+pub fn import_conversation(
+    state: State<'_, AppState>,
+    json_data: String,
+) -> AppResult<crate::data::repo::conversation::Conversation> {
+    let parsed: Value = serde_json::from_str(&json_data)?;
+
+    let title = parsed["conversation"]["title"]
+        .as_str()
+        .unwrap_or("Imported Chat")
+        .to_string();
+    let model_id = parsed["conversation"]["model_id"]
+        .as_str()
+        .unwrap_or("claude-sonnet-4-5")
+        .to_string();
+
+    state.db.with_conn(|conn| {
+        // Create new conversation
+        let conv = ConversationRepo::create(conn, &CreateConversation {
+            title: Some(title),
+            model_id: Some(model_id),
+            system_prompt: None,
+            folder_id: None,
+            agent_mode: None,
+        })?;
+
+        // Import messages
+        if let Some(messages) = parsed["messages"].as_array() {
+            for msg in messages {
+                let role = msg["role"].as_str().unwrap_or("user").to_string();
+                let content = msg["content"].as_str().unwrap_or("").to_string();
+                if content.is_empty() { continue; }
+
+                MessageRepo::create(conn, &crate::data::repo::message::CreateMessage {
+                    conversation_id: conv.id.clone(),
+                    parent_id: None,
+                    role,
+                    content,
+                    model_used: msg["model_used"].as_str().map(|s| s.to_string()),
+                    tokens_in: msg["tokens_in"].as_i64(),
+                    tokens_out: msg["tokens_out"].as_i64(),
+                    cost: msg["cost"].as_f64(),
+                    thinking_content: msg["thinking_content"].as_str().map(|s| s.to_string()),
+                    thinking_duration_ms: msg["thinking_duration_ms"].as_i64(),
+                    attachments: None,
+                    tool_calls: None,
+                })?;
+            }
+        }
+
+        Ok(conv)
+    })
+}

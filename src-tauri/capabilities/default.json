@@ -1,0 +1,15 @@
+{
+  "identifier": "default",
+  "description": "Default permissions for the main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-emit",
+    "core:event:allow-listen",
+    "global-shortcut:default",
+    "notification:default",
+    "shell:default",
+    "autostart:default"
+  ]
+}
