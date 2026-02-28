@@ -106,9 +106,25 @@ pub async fn chat_send(
     enable_thinking: bool,
     on_event: tauri::ipc::Channel<StreamEvent>,
 ) -> AppResult<crate::data::repo::message::Message> {
-    // 1. Check if API key is configured
-    let api_key = state.db.with_conn(|conn| SettingsRepo::get(conn, "api_key"))?;
-    let proxy_url = state.db.with_conn(|conn| SettingsRepo::get(conn, "proxy_url"))?;
+    // 1. Check if API key is configured (from macOS Keychain)
+    let api_key = crate::data::secure::SecureStore::get_api_key()?;
+
+    // Construct proxy URL from separate settings
+    let proxy_url = {
+        let proxy_type = state.db.with_conn(|conn| SettingsRepo::get(conn, "proxy_type"))?;
+        let proxy_host = state.db.with_conn(|conn| SettingsRepo::get(conn, "proxy_host"))?;
+        let proxy_port = state.db.with_conn(|conn| SettingsRepo::get(conn, "proxy_port"))?;
+
+        match (proxy_type.as_deref(), proxy_host, proxy_port) {
+            (Some("http"), Some(h), Some(p)) if !h.is_empty() && !p.is_empty() => {
+                Some(format!("http://{}:{}", h, p))
+            }
+            (Some("socks5"), Some(h), Some(p)) if !h.is_empty() && !p.is_empty() => {
+                Some(format!("socks5://{}:{}", h, p))
+            }
+            _ => None,
+        }
+    };
 
     // 2. Get conversation details (for system prompt)
     let conversation = state.db.with_conn(|conn| ConversationRepo::get_by_id(conn, &conversation_id))?;
@@ -600,6 +616,26 @@ pub fn conversation_fork(
 
         Ok(forked)
     })
+}
+
+// ===================== Secure Store Commands =====================
+
+/// Store the API key securely in macOS Keychain
+#[tauri::command]
+pub fn secure_set_api_key(key: String) -> AppResult<()> {
+    crate::data::secure::SecureStore::set_api_key(&key)
+}
+
+/// Retrieve the API key from macOS Keychain
+#[tauri::command]
+pub fn secure_get_api_key() -> AppResult<Option<String>> {
+    crate::data::secure::SecureStore::get_api_key()
+}
+
+/// Delete the API key from macOS Keychain
+#[tauri::command]
+pub fn secure_delete_api_key() -> AppResult<()> {
+    crate::data::secure::SecureStore::delete_api_key()
 }
 
 // ===================== Desktop Notification Command =====================

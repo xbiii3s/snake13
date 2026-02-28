@@ -39,6 +39,16 @@ export function ProxyConfig() {
     await ipc.setSetting("proxy_port", port);
     await ipc.setSetting("proxy_username", username);
     // Note: password stored via keychain in production
+
+    // Also save constructed proxy_url for the backend
+    if (proxyType === "http" && host && port) {
+      await ipc.setSetting("proxy_url", `http://${host}:${port}`);
+    } else if (proxyType === "socks5" && host && port) {
+      await ipc.setSetting("proxy_url", `socks5://${host}:${port}`);
+    } else {
+      await ipc.setSetting("proxy_url", "");
+    }
+
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };

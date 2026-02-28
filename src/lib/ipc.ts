@@ -93,6 +93,20 @@ export async function setSetting(key: string, value: string): Promise<void> {
   return invoke("settings_set", { key, value });
 }
 
+// ===================== Secure Store =====================
+
+export async function secureSetApiKey(key: string): Promise<void> {
+  return invoke("secure_set_api_key", { key });
+}
+
+export async function secureGetApiKey(): Promise<string | null> {
+  return invoke("secure_get_api_key");
+}
+
+export async function secureDeleteApiKey(): Promise<void> {
+  return invoke("secure_delete_api_key");
+}
+
 // ===================== MCP =====================
 
 export interface McpServerConfig {

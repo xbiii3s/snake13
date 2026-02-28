@@ -1,8 +1,33 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Save } from "lucide-react";
+import * as ipc from "@/lib/ipc";
 
 export function AppearanceConfig() {
   const [fontSize, setFontSize] = useState(14);
   const [showTokens, setShowTokens] = useState(true);
+  const [saved, setSaved] = useState(false);
+
+  // Load saved settings on mount
+  useEffect(() => {
+    (async () => {
+      const savedFontSize = await ipc.getSetting("font_size");
+      const savedShowTokens = await ipc.getSetting("show_tokens");
+      if (savedFontSize) setFontSize(Number(savedFontSize));
+      if (savedShowTokens) setShowTokens(savedShowTokens === "true");
+    })();
+  }, []);
+
+  // Apply font size globally via CSS custom property
+  useEffect(() => {
+    document.documentElement.style.setProperty("--font-size-base", `${fontSize}px`);
+  }, [fontSize]);
+
+  const handleSave = useCallback(async () => {
+    await ipc.setSetting("font_size", String(fontSize));
+    await ipc.setSetting("show_tokens", String(showTokens));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }, [fontSize, showTokens]);
 
   return (
     <div>
@@ -75,6 +100,17 @@ export function AppearanceConfig() {
             <p className="text-text-secondary mt-1">Secondary text style.</p>
             <code className="text-accent-light bg-bg-primary px-1 rounded text-sm">code block</code>
           </div>
+        </div>
+
+        {/* Save button */}
+        <div className="pt-2">
+          <button
+            onClick={handleSave}
+            className="flex items-center gap-1.5 px-4 py-2 bg-accent text-text-inverse text-sm rounded-[var(--radius-sm)] hover:bg-accent-hover transition-colors"
+          >
+            <Save size={14} />
+            {saved ? "Saved!" : "Save Settings"}
+          </button>
         </div>
       </div>
     </div>

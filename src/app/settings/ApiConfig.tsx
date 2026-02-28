@@ -13,7 +13,7 @@ export function ApiConfig() {
   // Load saved settings on mount
   useEffect(() => {
     (async () => {
-      const savedKey = await ipc.getSetting("api_key");
+      const savedKey = await ipc.secureGetApiKey();
       const savedEndpoint = await ipc.getSetting("api_endpoint");
       const savedModel = await ipc.getSetting("default_model");
       if (savedKey) setApiKey(savedKey);
@@ -31,7 +31,7 @@ export function ApiConfig() {
   };
 
   const handleSave = async () => {
-    await ipc.setSetting("api_key", apiKey);
+    await ipc.secureSetApiKey(apiKey);
     await ipc.setSetting("api_endpoint", endpoint);
     await ipc.setSetting("default_model", defaultModel);
     setSaved(true);

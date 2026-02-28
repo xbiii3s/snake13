@@ -7,7 +7,7 @@ mod mcp;
 mod system;
 
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 /// Global application state managed by Tauri
 pub struct AppState {
@@ -63,6 +63,34 @@ pub fn run() {
                 log::warn!("Failed to setup tray: {}", e);
             }
 
+            // Register global shortcuts
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_global_shortcut::{
+                    Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
+                };
+
+                let spotlight_shortcut =
+                    Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::Space);
+                let handle_clone = handle.clone();
+
+                if let Err(e) = app.global_shortcut().on_shortcut(
+                    spotlight_shortcut,
+                    move |_app, shortcut, event| {
+                        if event.state == ShortcutState::Pressed
+                            && shortcut == &spotlight_shortcut
+                        {
+                            if let Some(window) = handle_clone.get_webview_window("main") {
+                                let _ = window.emit("global-shortcut", "spotlight");
+                                let _ = window.set_focus();
+                            }
+                        }
+                    },
+                ) {
+                    log::warn!("Failed to register global shortcuts: {}", e);
+                }
+            }
+
             log::info!("Claude Desktop Pro initialized successfully");
             Ok(())
         })
@@ -107,6 +135,9 @@ pub fn run() {
             commands::template_delete,
             commands::conversation_fork,
             commands::send_notification,
+            commands::secure_set_api_key,
+            commands::secure_get_api_key,
+            commands::secure_delete_api_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
