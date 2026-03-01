@@ -207,14 +207,26 @@ function GeneralConfig() {
 
   useEffect(() => {
     (async () => {
-      const savedAutoStart = await ipc.getSetting("auto_start");
+      try {
+        const isEnabled = await ipc.getAutostart();
+        setAutoStart(isEnabled);
+      } catch {
+        // Fallback to settings store
+        const savedAutoStart = await ipc.getSetting("auto_start");
+        if (savedAutoStart) setAutoStart(savedAutoStart === "true");
+      }
       const savedLang = await ipc.getSetting("language");
-      if (savedAutoStart) setAutoStart(savedAutoStart === "true");
       if (savedLang) setLanguage(savedLang);
     })();
   }, []);
 
   const handleSave = useCallback(async () => {
+    // Actually enable/disable autostart via Tauri plugin
+    try {
+      await ipc.setAutostart(autoStart);
+    } catch (e) {
+      console.error("Failed to set autostart:", e);
+    }
     await ipc.setSetting("auto_start", String(autoStart));
     await ipc.setSetting("language", language);
     setSaved(true);

@@ -138,6 +138,8 @@ pub fn run() {
             commands::secure_set_api_key,
             commands::secure_get_api_key,
             commands::secure_delete_api_key,
+            commands::set_autostart,
+            commands::get_autostart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

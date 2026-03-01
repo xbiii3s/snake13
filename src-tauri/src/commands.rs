@@ -648,6 +648,29 @@ pub fn secure_delete_api_key() -> AppResult<()> {
     crate::data::secure::SecureStore::delete_api_key()
 }
 
+// ===================== Auto-start Commands =====================
+
+/// Enable or disable launch at startup
+#[tauri::command]
+pub fn set_autostart(app: tauri::AppHandle, enabled: bool) -> AppResult<()> {
+    use tauri_plugin_autostart::ManagerExt;
+    let manager = app.autolaunch();
+    if enabled {
+        manager.enable().map_err(|e| crate::error::AppError::Internal(format!("Failed to enable autostart: {}", e)))?;
+    } else {
+        manager.disable().map_err(|e| crate::error::AppError::Internal(format!("Failed to disable autostart: {}", e)))?;
+    }
+    Ok(())
+}
+
+/// Check if auto-start is currently enabled
+#[tauri::command]
+pub fn get_autostart(app: tauri::AppHandle) -> AppResult<bool> {
+    use tauri_plugin_autostart::ManagerExt;
+    let manager = app.autolaunch();
+    manager.is_enabled().map_err(|e| crate::error::AppError::Internal(format!("Failed to check autostart: {}", e)))
+}
+
 // ===================== Desktop Notification Command =====================
 
 /// Send a macOS desktop notification

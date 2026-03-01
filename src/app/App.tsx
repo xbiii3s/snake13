@@ -28,6 +28,23 @@ function App() {
     loadConversations();
   }, [loadConversations]);
 
+  // Listen for global shortcuts from Tauri (e.g. ⌘+Shift+Space when app is in background)
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen<string>("global-shortcut", (event) => {
+        if (event.payload === "spotlight") {
+          setSpotlightOpen((prev) => !prev);
+        }
+      }).then((fn) => {
+        unlisten = fn;
+      });
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

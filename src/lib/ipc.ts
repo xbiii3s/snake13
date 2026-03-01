@@ -342,6 +342,16 @@ export async function forkConversation(conversationId: string, fromMessageId: st
   return invoke("conversation_fork", { conversationId, fromMessageId });
 }
 
+// ===================== Auto-start =====================
+
+export async function setAutostart(enabled: boolean): Promise<void> {
+  return invoke("set_autostart", { enabled });
+}
+
+export async function getAutostart(): Promise<boolean> {
+  return invoke("get_autostart");
+}
+
 // ===================== Desktop Notifications =====================
 
 export async function sendNotification(title: string, body: string): Promise<void> {
