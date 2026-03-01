@@ -3,7 +3,6 @@ import type { Conversation, CreateConversation } from "@/types/conversation";
 import type { Message } from "@/types/message";
 import type { StreamEvent, Usage } from "@/types/stream";
 import * as ipc from "@/lib/ipc";
-import { useAuthStore } from "@/stores/authStore";
 
 interface StreamingState {
   thinkingText: string;
@@ -229,21 +228,9 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         const title = content.slice(0, 50) + (content.length > 50 ? "..." : "");
         get().updateConversationTitle(convId, title);
       }
-    } catch (err: unknown) {
+    } catch (err) {
       console.error("Chat send error:", err);
       set({ isStreaming: false });
-
-      // Handle auth-related errors — trigger logout or show user-friendly message
-      if (err && typeof err === "object" && "kind" in err) {
-        const errorKind = (err as { kind: string }).kind;
-        if (errorKind === "auth_required") {
-          // Force logout — session expired
-          useAuthStore.getState().logout();
-        } else if (errorKind === "quota_exceeded") {
-          // Show quota exceeded message — user can see this in the chat
-          console.warn("Daily quota exceeded");
-        }
-      }
     }
   },
 

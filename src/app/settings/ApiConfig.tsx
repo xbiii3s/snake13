@@ -1,162 +1,126 @@
-import { useEffect, useState } from "react";
-import { User, CreditCard, LogOut, Shield } from "lucide-react";
-import { useAuthStore } from "@/stores/authStore";
+import { useState, useEffect } from "react";
+import { Eye, EyeOff, CheckCircle, XCircle, Save } from "lucide-react";
 import * as ipc from "@/lib/ipc";
 
 export function ApiConfig() {
-  const { user, subscription, logout, isLoading } = useAuthStore();
+  const [apiKey, setApiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [endpoint, setEndpoint] = useState("https://api.anthropic.com");
   const [defaultModel, setDefaultModel] = useState("claude-sonnet-4-5");
   const [saved, setSaved] = useState(false);
 
-  // Load default model setting
+  // Load saved settings on mount
   useEffect(() => {
     (async () => {
+      const savedKey = await ipc.secureGetApiKey();
+      const savedEndpoint = await ipc.getSetting("api_endpoint");
       const savedModel = await ipc.getSetting("default_model");
+      if (savedKey) setApiKey(savedKey);
+      if (savedEndpoint) setEndpoint(savedEndpoint);
       if (savedModel) setDefaultModel(savedModel);
     })();
   }, []);
 
-  const handleSaveModel = async () => {
+  const handleTest = async () => {
+    setTestStatus("testing");
+    // Simulate API test — real implementation will call the backend
+    setTimeout(() => {
+      setTestStatus(apiKey.startsWith("sk-") ? "success" : "error");
+    }, 1500);
+  };
+
+  const handleSave = async () => {
+    await ipc.secureSetApiKey(apiKey);
+    await ipc.setSetting("api_endpoint", endpoint);
     await ipc.setSetting("default_model", defaultModel);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleLogout = async () => {
-    await logout();
-  };
-
   return (
     <div>
-      <h3 className="text-lg font-semibold mb-4">Account & Subscription</h3>
+      <h3 className="text-lg font-semibold mb-4">API Configuration</h3>
 
-      <div className="space-y-6">
-        {/* User Info */}
-        <div className="p-4 bg-bg-elevated rounded-[var(--radius-sm)] border border-border">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
-              <User size={18} className="text-accent" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-text-primary">
-                {user?.email ?? "Unknown"}
-              </p>
-              <p className="text-xs text-text-muted">
-                Member since{" "}
-                {user?.created_at
-                  ? new Date(user.created_at).toLocaleDateString()
-                  : "N/A"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Subscription Info */}
-        <div className="p-4 bg-bg-elevated rounded-[var(--radius-sm)] border border-border">
-          <div className="flex items-center gap-2 mb-3">
-            <CreditCard size={16} className="text-accent" />
-            <h4 className="text-sm font-medium text-text-primary">
-              Subscription
-            </h4>
-          </div>
-
-          {subscription ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-text-secondary">Plan</span>
-                <span className="text-sm font-medium text-accent">
-                  {subscription.display_name}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-text-secondary">Status</span>
-                <span
-                  className={`text-sm font-medium ${
-                    subscription.status === "active"
-                      ? "text-success"
-                      : "text-error"
-                  }`}
-                >
-                  {subscription.status === "active" ? "Active" : subscription.status}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-text-secondary">
-                  Daily Messages
-                </span>
-                <span className="text-sm text-text-primary">
-                  {subscription.max_messages_per_day} / day
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-text-secondary">Models</span>
-                <span className="text-sm text-text-primary">
-                  {subscription.allowed_models.length} available
-                </span>
-              </div>
-              {subscription.expires_at && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-text-secondary">Expires</span>
-                  <span className="text-sm text-text-primary">
-                    {new Date(subscription.expires_at).toLocaleDateString()}
-                  </span>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-sm text-text-muted">
-              <p>Free tier — limited daily usage</p>
-              <button className="mt-2 px-3 py-1.5 bg-accent text-text-inverse text-xs rounded-[var(--radius-sm)] hover:bg-accent-hover transition-colors">
-                Upgrade Plan
+      <div className="space-y-4">
+        {/* API Key */}
+        <div>
+          <label className="text-sm text-text-secondary block mb-1">API Key</label>
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <input
+                type={showKey ? "text" : "password"}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="sk-ant-..."
+                className="w-full bg-bg-elevated border border-border rounded-[var(--radius-sm)] px-3 py-2 pr-10 text-sm text-text-primary outline-none focus:border-accent/50 font-mono"
+              />
+              <button
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+              >
+                {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
+            <button
+              onClick={handleTest}
+              disabled={!apiKey || testStatus === "testing"}
+              className="px-4 py-2 bg-accent text-text-inverse text-sm rounded-[var(--radius-sm)] hover:bg-accent-hover disabled:opacity-50 transition-colors"
+            >
+              {testStatus === "testing" ? "Testing..." : "Test"}
+            </button>
+          </div>
+          {testStatus === "success" && (
+            <p className="text-xs text-success flex items-center gap-1 mt-1">
+              <CheckCircle size={12} /> Connection successful
+            </p>
           )}
+          {testStatus === "error" && (
+            <p className="text-xs text-error flex items-center gap-1 mt-1">
+              <XCircle size={12} /> Invalid API key
+            </p>
+          )}
+          <p className="text-xs text-text-muted mt-1">
+            Stored securely in macOS Keychain
+          </p>
         </div>
 
-        {/* Default Model */}
+        {/* Custom Endpoint */}
         <div>
-          <label className="text-sm text-text-secondary block mb-1">
-            Default Model
-          </label>
+          <label className="text-sm text-text-secondary block mb-1">API Endpoint</label>
+          <input
+            type="text"
+            value={endpoint}
+            onChange={(e) => setEndpoint(e.target.value)}
+            className="w-full bg-bg-elevated border border-border rounded-[var(--radius-sm)] px-3 py-2 text-sm text-text-primary outline-none focus:border-accent/50 font-mono"
+          />
+          <p className="text-xs text-text-muted mt-1">
+            Default: https://api.anthropic.com
+          </p>
+        </div>
+
+        {/* Model defaults */}
+        <div>
+          <label className="text-sm text-text-secondary block mb-1">Default Model</label>
           <select
             value={defaultModel}
             onChange={(e) => setDefaultModel(e.target.value)}
             className="w-full bg-bg-elevated border border-border rounded-[var(--radius-sm)] px-3 py-2 text-sm text-text-primary outline-none focus:border-accent/50"
           >
-            <option value="claude-sonnet-4-5">
-              Claude Sonnet 4.5 (Recommended)
-            </option>
+            <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (Recommended)</option>
             <option value="claude-opus-4-6">Claude Opus 4.6</option>
             <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
           </select>
-          <div className="mt-2">
-            <button
-              onClick={handleSaveModel}
-              className="px-3 py-1.5 bg-bg-elevated border border-border text-sm text-text-primary rounded-[var(--radius-sm)] hover:bg-bg-tertiary transition-colors"
-            >
-              {saved ? "Saved!" : "Save Model Preference"}
-            </button>
-          </div>
         </div>
 
-        {/* Security Note */}
-        <div className="flex items-start gap-2 p-3 bg-bg-elevated rounded-[var(--radius-sm)] border border-border">
-          <Shield size={14} className="text-accent mt-0.5 shrink-0" />
-          <p className="text-xs text-text-muted">
-            Your account is secured with end-to-end encryption. API calls are
-            routed through our secure proxy — you never need to manage API keys.
-          </p>
-        </div>
-
-        {/* Logout */}
-        <div className="pt-2 border-t border-border">
+        {/* Save button */}
+        <div className="pt-2">
           <button
-            onClick={handleLogout}
-            disabled={isLoading}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm text-error hover:bg-error/10 rounded-[var(--radius-sm)] transition-colors disabled:opacity-50"
+            onClick={handleSave}
+            className="flex items-center gap-1.5 px-4 py-2 bg-accent text-text-inverse text-sm rounded-[var(--radius-sm)] hover:bg-accent-hover transition-colors"
           >
-            <LogOut size={14} />
-            Sign Out
+            <Save size={14} />
+            {saved ? "Saved!" : "Save Settings"}
           </button>
         </div>
       </div>

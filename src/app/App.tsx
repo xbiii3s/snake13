@@ -7,13 +7,12 @@ import { SettingsPanel } from "@/app/settings/SettingsPanel";
 import { SpotlightWindow } from "@/app/spotlight/SpotlightWindow";
 import { ApprovalDialog } from "@/app/agent/ApprovalDialog";
 import { ArtifactPanel } from "@/app/artifacts/ArtifactPanel";
-import { AuthGuard } from "@/app/auth/AuthGuard";
 import { useUIStore } from "@/stores/uiStore";
 import { useChatStore } from "@/stores/chatStore";
 import { useTabStore } from "@/stores/tabStore";
 import type { Artifact } from "@/app/artifacts/ArtifactPanel";
 
-function AppContent() {
+function App() {
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const artifactPanelOpen = useUIStore((s) => s.artifactPanelOpen);
@@ -137,14 +136,6 @@ function AppContent() {
       {/* Agent Approval Dialog */}
       <ApprovalDialog />
     </div>
-  );
-}
-
-function App() {
-  return (
-    <AuthGuard>
-      <AppContent />
-    </AuthGuard>
   );
 }
 
