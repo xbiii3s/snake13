@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { X, Key, Globe, Palette, Keyboard, Bot, Settings, Plug, BarChart3, Save } from "lucide-react";
+import { X, User, Globe, Palette, Keyboard, Bot, Settings, Plug, BarChart3, Save } from "lucide-react";
 import * as ipc from "@/lib/ipc";
 import { ApiConfig } from "./ApiConfig";
 import { ProxyConfig } from "./ProxyConfig";
@@ -13,8 +13,8 @@ interface Props {
 
 type SettingsTab = "api" | "proxy" | "appearance" | "shortcuts" | "agent" | "mcp" | "usage" | "general";
 
-const TABS: Array<{ id: SettingsTab; label: string; icon: typeof Key }> = [
-  { id: "api", label: "API", icon: Key },
+const TABS: Array<{ id: SettingsTab; label: string; icon: typeof User }> = [
+  { id: "api", label: "Account", icon: User },
   { id: "proxy", label: "Proxy", icon: Globe },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "shortcuts", label: "Shortcuts", icon: Keyboard },

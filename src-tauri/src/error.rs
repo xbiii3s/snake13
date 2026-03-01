@@ -33,6 +33,15 @@ pub enum AppError {
     #[error("Cancelled")]
     Cancelled,
 
+    #[error("Authentication required: {0}")]
+    AuthRequired(String),
+
+    #[error("Subscription expired: {0}")]
+    SubscriptionExpired(String),
+
+    #[error("Quota exceeded: {0}")]
+    QuotaExceeded(String),
+
     #[error("{0}")]
     Internal(String),
 }
@@ -64,6 +73,9 @@ impl AppError {
             Self::Validation(_) => "validation",
             Self::PermissionDenied(_) => "permission_denied",
             Self::Cancelled => "cancelled",
+            Self::AuthRequired(_) => "auth_required",
+            Self::SubscriptionExpired(_) => "subscription_expired",
+            Self::QuotaExceeded(_) => "quota_exceeded",
             Self::Internal(_) => "internal",
         }
     }

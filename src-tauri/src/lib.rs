@@ -1,4 +1,5 @@
 mod agent;
+pub mod auth;
 mod commands;
 mod core;
 mod data;
@@ -15,6 +16,7 @@ pub struct AppState {
     pub mcp: Arc<mcp::manager::McpManager>,
     pub tools: Arc<agent::tools::ToolRegistry>,
     pub permissions: Arc<agent::security::PermissionManager>,
+    pub auth: Arc<auth::AuthManager>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -49,13 +51,23 @@ pub fn run() {
             let tool_registry = agent::tools::ToolRegistry::with_defaults(&app_data_dir);
             let permission_manager = agent::security::PermissionManager::new();
 
+            // Initialize auth manager and try to restore session from Keychain
+            let auth_manager = auth::AuthManager::new();
+
             let state = AppState {
                 db: Arc::new(db),
                 mcp: Arc::new(mcp_manager),
                 tools: Arc::new(tool_registry),
                 permissions: Arc::new(permission_manager),
+                auth: Arc::new(auth_manager),
             };
             app.manage(state);
+
+            // Restore auth session from Keychain in background
+            let auth_handle = app.state::<AppState>().auth.clone();
+            tauri::async_runtime::spawn(async move {
+                auth_handle.restore_from_keychain().await;
+            });
 
             // Setup system tray
             let handle = app.handle().clone();
@@ -140,6 +152,13 @@ pub fn run() {
             commands::secure_delete_api_key,
             commands::set_autostart,
             commands::get_autostart,
+            // Auth commands
+            commands::auth_login,
+            commands::auth_register,
+            commands::auth_logout,
+            commands::auth_refresh,
+            commands::auth_get_session,
+            commands::auth_get_subscription,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {

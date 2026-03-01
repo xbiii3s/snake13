@@ -275,6 +275,7 @@ struct SseErrorDetail {
 // ===================== Claude API Stream =====================
 
 /// Stream a real response from the Claude API
+#[allow(clippy::too_many_arguments)]
 pub async fn claude_stream(
     channel: tauri::ipc::Channel<StreamEvent>,
     api_key: &str,
@@ -495,6 +496,259 @@ pub async fn claude_stream(
                     "ping" => {
                         // Ping events are heartbeats, ignore them
                     }
+                    _ => {
+                        log::debug!("Unknown SSE event type: {}", current_event_type);
+                    }
+                }
+                current_event_type.clear();
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// ===================== Proxy Stream (SaaS mode) =====================
+
+/// Stream a response through the company's proxy backend.
+///
+/// The proxy endpoint mirrors Anthropic's SSE format exactly, so we reuse
+/// all the same SSE parsing logic from `claude_stream`. The only differences
+/// are the target URL and the authentication header:
+/// - URL: Supabase Edge Function `proxy-chat`
+/// - Header: `Authorization: Bearer <auth_token>` (instead of `x-api-key`)
+#[allow(clippy::too_many_arguments)]
+pub async fn proxy_stream(
+    channel: tauri::ipc::Channel<StreamEvent>,
+    auth_token: &str,
+    model_id: &str,
+    messages: Vec<ApiMessage>,
+    system_prompt: Option<&str>,
+    enable_thinking: bool,
+    tools: Option<Value>,
+    max_tokens: Option<u32>,
+    proxy_url: Option<&str>,
+) -> crate::error::AppResult<()> {
+    let gen = new_generation();
+    let max_tokens = max_tokens.unwrap_or(8192);
+
+    let body = ApiRequest {
+        model: model_id.to_string(),
+        max_tokens,
+        stream: true,
+        messages,
+        system: system_prompt.map(|s| s.to_string()),
+        thinking: if enable_thinking {
+            Some(ThinkingConfig {
+                thinking_type: "enabled".to_string(),
+                budget_tokens: 4096,
+            })
+        } else {
+            None
+        },
+        tools,
+    };
+
+    // Build reqwest client (with optional network proxy)
+    let mut client_builder = reqwest::Client::builder();
+    if let Some(proxy) = proxy_url {
+        if !proxy.is_empty() {
+            let reqwest_proxy = reqwest::Proxy::all(proxy)
+                .map_err(|e| crate::error::AppError::Internal(format!("Invalid proxy URL: {}", e)))?;
+            client_builder = client_builder.proxy(reqwest_proxy);
+        }
+    }
+    let client = client_builder
+        .build()
+        .map_err(|e| crate::error::AppError::Internal(format!("Failed to build HTTP client: {}", e)))?;
+
+    let backend_url = crate::auth::config::PROXY_CHAT_URL;
+
+    // Send request to proxy backend (Bearer auth instead of x-api-key)
+    let response = client
+        .post(backend_url)
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {}", auth_token))
+        .json(&body)
+        .send()
+        .await?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let error_body = response.text().await.unwrap_or_default();
+
+        // Map specific HTTP status codes to typed errors
+        if status.as_u16() == 401 {
+            return Err(crate::error::AppError::AuthRequired(
+                "Session expired, please login again".to_string(),
+            ));
+        }
+        if status.as_u16() == 403 {
+            return Err(crate::error::AppError::SubscriptionExpired(
+                "Your subscription has expired".to_string(),
+            ));
+        }
+        if status.as_u16() == 429 {
+            return Err(crate::error::AppError::QuotaExceeded(
+                "Daily usage limit reached".to_string(),
+            ));
+        }
+
+        if let Ok(sse_err) = serde_json::from_str::<SseError>(&error_body) {
+            return Err(crate::error::AppError::Api {
+                status: status.as_u16(),
+                message: sse_err.error.message,
+            });
+        }
+        return Err(crate::error::AppError::Api {
+            status: status.as_u16(),
+            message: error_body,
+        });
+    }
+
+    // Process SSE stream — identical parsing to claude_stream
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+    let mut current_event_type = String::new();
+    let mut _message_id = String::new();
+    let mut input_tokens: u64 = 0;
+    let mut output_tokens: u64 = 0;
+    let mut thinking_start_time: Option<Instant> = None;
+    let mut current_block_type = String::new();
+
+    let send = |event: StreamEvent| -> crate::error::AppResult<()> {
+        channel
+            .send(event)
+            .map_err(|e| crate::error::AppError::Internal(e.to_string()))
+    };
+
+    while let Some(chunk_result) = stream.next().await {
+        if is_cancelled(gen) {
+            return Err(crate::error::AppError::Cancelled);
+        }
+
+        let chunk = chunk_result?;
+        let chunk_str = String::from_utf8_lossy(&chunk);
+        buffer.push_str(&chunk_str);
+
+        while let Some(newline_pos) = buffer.find('\n') {
+            let line = buffer[..newline_pos].trim_end_matches('\r').to_string();
+            buffer = buffer[newline_pos + 1..].to_string();
+
+            if line.is_empty() {
+                continue;
+            }
+
+            if let Some(event_type) = line.strip_prefix("event: ") {
+                current_event_type = event_type.to_string();
+                continue;
+            }
+
+            if let Some(data) = line.strip_prefix("data: ") {
+                match current_event_type.as_str() {
+                    "message_start" => {
+                        if let Ok(msg_start) = serde_json::from_str::<SseMessageStart>(data) {
+                            _message_id = msg_start.message.id.clone();
+                            if let Some(usage) = msg_start.message.usage {
+                                input_tokens = usage.input_tokens.unwrap_or(0);
+                            }
+                            send(StreamEvent::MessageStart {
+                                message_id: _message_id.clone(),
+                            })?;
+                        }
+                    }
+                    "content_block_start" => {
+                        if let Ok(block_start) = serde_json::from_str::<SseContentBlockStart>(data) {
+                            current_block_type = block_start.content_block.block_type.clone();
+                            match current_block_type.as_str() {
+                                "thinking" => {
+                                    thinking_start_time = Some(Instant::now());
+                                    send(StreamEvent::ThinkingStart)?;
+                                }
+                                "text" => {
+                                    send(StreamEvent::ContentStart)?;
+                                }
+                                "tool_use" => {
+                                    let id = block_start.content_block.id.unwrap_or_default();
+                                    let name = block_start.content_block.name.unwrap_or_default();
+                                    send(StreamEvent::ToolUseStart { id, name })?;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    "content_block_delta" => {
+                        if let Ok(block_delta) = serde_json::from_str::<SseContentBlockDelta>(data) {
+                            match block_delta.delta.delta_type.as_str() {
+                                "thinking_delta" => {
+                                    if let Some(text) = block_delta.delta.thinking {
+                                        send(StreamEvent::ThinkingDelta { text })?;
+                                    }
+                                }
+                                "text_delta" => {
+                                    if let Some(text) = block_delta.delta.text {
+                                        send(StreamEvent::ContentDelta { text })?;
+                                    }
+                                }
+                                "input_json_delta" => {
+                                    if let Some(partial_json) = block_delta.delta.partial_json {
+                                        send(StreamEvent::ToolUseDelta { partial_json })?;
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    "content_block_stop" => {
+                        match current_block_type.as_str() {
+                            "thinking" => {
+                                let duration_ms = thinking_start_time
+                                    .map(|t| t.elapsed().as_millis() as u64)
+                                    .unwrap_or(0);
+                                thinking_start_time = None;
+                                send(StreamEvent::ThinkingStop { duration_ms })?;
+                            }
+                            "text" => {
+                                send(StreamEvent::ContentStop)?;
+                            }
+                            "tool_use" => {
+                                send(StreamEvent::ToolUseStop)?;
+                            }
+                            _ => {}
+                        }
+                        current_block_type.clear();
+                    }
+                    "message_delta" => {
+                        if let Ok(msg_delta) = serde_json::from_str::<SseMessageDelta>(data) {
+                            if let Some(usage) = msg_delta.usage {
+                                output_tokens = usage.output_tokens.unwrap_or(0);
+                            }
+                        }
+                    }
+                    "message_stop" => {
+                        let cost = calculate_cost(model_id, input_tokens, output_tokens);
+                        send(StreamEvent::MessageStop {
+                            usage: Usage {
+                                input_tokens,
+                                output_tokens,
+                                cost,
+                            },
+                        })?;
+                    }
+                    "error" => {
+                        if let Ok(err) = serde_json::from_str::<SseError>(data) {
+                            send(StreamEvent::Error {
+                                kind: err.error.error_type,
+                                message: err.error.message,
+                            })?;
+                        } else {
+                            send(StreamEvent::Error {
+                                kind: "unknown".to_string(),
+                                message: data.to_string(),
+                            })?;
+                        }
+                    }
+                    "ping" => {}
                     _ => {
                         log::debug!("Unknown SSE event type: {}", current_event_type);
                     }

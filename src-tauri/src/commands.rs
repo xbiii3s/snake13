@@ -130,10 +130,10 @@ pub async fn chat_send(
     enable_thinking: bool,
     on_event: tauri::ipc::Channel<StreamEvent>,
 ) -> AppResult<crate::data::repo::message::Message> {
-    // 1. Check if API key is configured (from macOS Keychain)
-    let api_key = crate::data::secure::SecureStore::get_api_key()?;
+    // 1. Check auth token first (SaaS mode)
+    let auth_token = state.auth.access_token().await;
 
-    // Construct proxy URL from separate settings
+    // Construct network proxy URL from settings (for outbound connections)
     let proxy_url = {
         let proxy_type = state.db.with_conn(|conn| SettingsRepo::get(conn, "proxy_type"))?;
         let proxy_host = state.db.with_conn(|conn| SettingsRepo::get(conn, "proxy_host"))?;
@@ -174,26 +174,15 @@ pub async fn chat_send(
         )
     })?;
 
-    // 4. Determine whether to use real API or mock
-    let has_api_key = api_key
-        .as_ref()
-        .map(|k| !k.trim().is_empty())
-        .unwrap_or(false);
-
-    if has_api_key {
-        // Safety: has_api_key is true only when api_key is Some with non-empty content
-        let api_key = api_key.ok_or_else(|| crate::error::AppError::Internal(
-            "API key unexpectedly missing".to_string()
-        ))?;
-
-        // Build messages history from database
+    // 4. Choose stream mode: auth proxy → direct API → mock
+    if let Some(token) = auth_token {
+        // SaaS mode: stream through company proxy backend
         let db_messages = state
             .db
             .with_conn(|conn| MessageRepo::list_by_conversation(conn, &conversation_id))?;
 
         let mut api_messages: Vec<ApiMessage> = Vec::new();
         for msg in &db_messages {
-            // Only include user and assistant messages
             if msg.role != "user" && msg.role != "assistant" {
                 continue;
             }
@@ -203,21 +192,19 @@ pub async fn chat_send(
             });
         }
 
-        // Stream real API response
-        stream::claude_stream(
+        stream::proxy_stream(
             on_event.clone(),
-            &api_key,
+            &token,
             &model_id,
             api_messages,
             conversation.system_prompt.as_deref(),
             enable_thinking,
-            None, // tools
-            None, // max_tokens (defaults to 8192)
+            None,
+            None,
             proxy_url.as_deref(),
         )
         .await?;
 
-        // Save assistant message placeholder (content was streamed)
         let assistant_msg = state.db.with_conn(|conn| {
             MessageRepo::create(
                 conn,
@@ -240,35 +227,97 @@ pub async fn chat_send(
 
         Ok(assistant_msg)
     } else {
-        // Fall back to mock stream
-        stream::mock_stream(on_event.clone(), &model_id, &content, enable_thinking).await?;
+        // Check legacy API key for backward compatibility
+        let api_key = crate::data::secure::SecureStore::get_api_key()?;
+        let has_api_key = api_key
+            .as_ref()
+            .map(|k| !k.trim().is_empty())
+            .unwrap_or(false);
 
-        // Save assistant message (with mock content)
-        let assistant_msg = state.db.with_conn(|conn| {
-            MessageRepo::create(
-                conn,
-                &CreateMessage {
-                    conversation_id: conversation_id.clone(),
-                    parent_id: Some(user_msg.id.clone()),
-                    role: "assistant".to_string(),
-                    content: "[Mock response - see stream]".to_string(),
-                    model_used: Some(model_id.clone()),
-                    tokens_in: Some(150),
-                    tokens_out: Some(200),
-                    cost: Some(0.001),
-                    thinking_content: if enable_thinking {
-                        Some("Mock thinking content".to_string())
-                    } else {
-                        None
-                    },
-                    thinking_duration_ms: if enable_thinking { Some(2500) } else { None },
-                    attachments: None,
-                    tool_calls: None,
-                },
+        if has_api_key {
+            let api_key = api_key.ok_or_else(|| crate::error::AppError::Internal(
+                "API key unexpectedly missing".to_string()
+            ))?;
+
+            let db_messages = state
+                .db
+                .with_conn(|conn| MessageRepo::list_by_conversation(conn, &conversation_id))?;
+
+            let mut api_messages: Vec<ApiMessage> = Vec::new();
+            for msg in &db_messages {
+                if msg.role != "user" && msg.role != "assistant" {
+                    continue;
+                }
+                api_messages.push(ApiMessage {
+                    role: msg.role.clone(),
+                    content: serde_json::Value::String(msg.content.clone()),
+                });
+            }
+
+            stream::claude_stream(
+                on_event.clone(),
+                &api_key,
+                &model_id,
+                api_messages,
+                conversation.system_prompt.as_deref(),
+                enable_thinking,
+                None,
+                None,
+                proxy_url.as_deref(),
             )
-        })?;
+            .await?;
 
-        Ok(assistant_msg)
+            let assistant_msg = state.db.with_conn(|conn| {
+                MessageRepo::create(
+                    conn,
+                    &CreateMessage {
+                        conversation_id: conversation_id.clone(),
+                        parent_id: Some(user_msg.id.clone()),
+                        role: "assistant".to_string(),
+                        content: "[Streamed response]".to_string(),
+                        model_used: Some(model_id.clone()),
+                        tokens_in: None,
+                        tokens_out: None,
+                        cost: None,
+                        thinking_content: None,
+                        thinking_duration_ms: None,
+                        attachments: None,
+                        tool_calls: None,
+                    },
+                )
+            })?;
+
+            Ok(assistant_msg)
+        } else {
+            // Fall back to mock stream (no auth, no API key)
+            stream::mock_stream(on_event.clone(), &model_id, &content, enable_thinking).await?;
+
+            let assistant_msg = state.db.with_conn(|conn| {
+                MessageRepo::create(
+                    conn,
+                    &CreateMessage {
+                        conversation_id: conversation_id.clone(),
+                        parent_id: Some(user_msg.id.clone()),
+                        role: "assistant".to_string(),
+                        content: "[Mock response - see stream]".to_string(),
+                        model_used: Some(model_id.clone()),
+                        tokens_in: Some(150),
+                        tokens_out: Some(200),
+                        cost: Some(0.001),
+                        thinking_content: if enable_thinking {
+                            Some("Mock thinking content".to_string())
+                        } else {
+                            None
+                        },
+                        thinking_duration_ms: if enable_thinking { Some(2500) } else { None },
+                        attachments: None,
+                        tool_calls: None,
+                    },
+                )
+            })?;
+
+            Ok(assistant_msg)
+        }
     }
 }
 
@@ -415,7 +464,7 @@ pub fn folder_create(
 
 #[tauri::command]
 pub fn folder_list(state: State<'_, AppState>) -> AppResult<Vec<crate::data::repo::folder::Folder>> {
-    state.db.with_conn(|conn| crate::data::repo::folder::FolderRepo::list(conn))
+    state.db.with_conn(crate::data::repo::folder::FolderRepo::list)
 }
 
 #[tauri::command]
@@ -472,7 +521,7 @@ pub fn usage_daily(
 
 #[tauri::command]
 pub fn usage_total(state: State<'_, AppState>) -> AppResult<crate::data::repo::usage::UsageSummary> {
-    state.db.with_conn(|conn| crate::data::repo::usage::UsageRepo::total(conn))
+    state.db.with_conn(crate::data::repo::usage::UsageRepo::total)
 }
 
 // ===================== Import/Export Commands =====================
@@ -580,7 +629,7 @@ pub fn template_create(
 /// List all conversation templates
 #[tauri::command]
 pub fn template_list(state: State<'_, AppState>) -> AppResult<Vec<crate::data::repo::template::Template>> {
-    state.db.with_conn(|conn| TemplateRepo::list(conn))
+    state.db.with_conn(TemplateRepo::list)
 }
 
 /// Update an existing template
@@ -707,5 +756,287 @@ pub async fn send_notification(
         .body(&body)
         .show()
         .map_err(|e| crate::error::AppError::Internal(format!("Notification failed: {}", e)))?;
+    Ok(())
+}
+
+// ===================== Auth Commands =====================
+
+/// Login with email and password via Supabase Auth
+#[tauri::command]
+pub async fn auth_login(
+    state: State<'_, AppState>,
+    email: String,
+    password: String,
+) -> AppResult<crate::auth::AuthSession> {
+    use crate::auth::config;
+
+    // Validate input
+    if email.is_empty() || password.is_empty() {
+        return Err(crate::error::AppError::Validation(
+            "Email and password are required".into(),
+        ));
+    }
+
+    // Call Supabase Auth token endpoint
+    let client = reqwest::Client::new();
+    let response = client
+        .post(config::auth_token_url())
+        .header("apikey", config::SUPABASE_ANON_KEY)
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "email": email,
+            "password": password,
+        }))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        return Err(crate::error::AppError::Api {
+            status,
+            message: format!("Login failed: {}", body),
+        });
+    }
+
+    let token_response: crate::auth::AuthTokenResponse = response.json().await?;
+
+    // Store tokens in Keychain and in-memory
+    state
+        .auth
+        .set_tokens(&token_response.access_token, &token_response.refresh_token)
+        .await?;
+
+    // Extract user profile
+    if let Some(user) = token_response.user {
+        let profile = crate::auth::UserProfile {
+            id: user.id,
+            email: user.email.unwrap_or_default(),
+            created_at: user.created_at.unwrap_or_default(),
+        };
+        state.auth.set_user(profile).await;
+    }
+
+    // Fetch subscription info
+    let _ = fetch_and_store_subscription(&state, &token_response.access_token).await;
+
+    Ok(state.auth.session().await)
+}
+
+/// Register a new account via Supabase Auth
+#[tauri::command]
+pub async fn auth_register(
+    state: State<'_, AppState>,
+    email: String,
+    password: String,
+) -> AppResult<crate::auth::AuthSession> {
+    use crate::auth::config;
+
+    if email.is_empty() || password.len() < 6 {
+        return Err(crate::error::AppError::Validation(
+            "Email is required and password must be at least 6 characters".into(),
+        ));
+    }
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(config::auth_signup_url())
+        .header("apikey", config::SUPABASE_ANON_KEY)
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "email": email,
+            "password": password,
+        }))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        return Err(crate::error::AppError::Api {
+            status,
+            message: format!("Registration failed: {}", body),
+        });
+    }
+
+    let token_response: crate::auth::AuthTokenResponse = response.json().await?;
+
+    state
+        .auth
+        .set_tokens(&token_response.access_token, &token_response.refresh_token)
+        .await?;
+
+    if let Some(user) = token_response.user {
+        let profile = crate::auth::UserProfile {
+            id: user.id,
+            email: user.email.unwrap_or_default(),
+            created_at: user.created_at.unwrap_or_default(),
+        };
+        state.auth.set_user(profile).await;
+    }
+
+    Ok(state.auth.session().await)
+}
+
+/// Logout and clear all auth tokens
+#[tauri::command]
+pub async fn auth_logout(state: State<'_, AppState>) -> AppResult<()> {
+    // Try to call Supabase logout endpoint (best effort)
+    if let Some(token) = state.auth.access_token().await {
+        let client = reqwest::Client::new();
+        let _ = client
+            .post(crate::auth::config::auth_logout_url())
+            .header("apikey", crate::auth::config::SUPABASE_ANON_KEY)
+            .header("Authorization", format!("Bearer {}", token))
+            .send()
+            .await;
+    }
+
+    state.auth.clear().await?;
+    Ok(())
+}
+
+/// Refresh the access token using the stored refresh token
+#[tauri::command]
+pub async fn auth_refresh(state: State<'_, AppState>) -> AppResult<crate::auth::AuthSession> {
+    use crate::auth::config;
+
+    let refresh_token = state
+        .auth
+        .refresh_token()
+        .await
+        .ok_or_else(|| crate::error::AppError::AuthRequired("No refresh token available".into()))?;
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(config::auth_refresh_url())
+        .header("apikey", config::SUPABASE_ANON_KEY)
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "refresh_token": refresh_token,
+        }))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        // Refresh failed — session is invalid, clear everything
+        state.auth.clear().await?;
+        return Err(crate::error::AppError::AuthRequired(
+            "Session expired, please login again".into(),
+        ));
+    }
+
+    let token_response: crate::auth::AuthTokenResponse = response.json().await?;
+
+    state
+        .auth
+        .set_tokens(&token_response.access_token, &token_response.refresh_token)
+        .await?;
+
+    if let Some(user) = token_response.user {
+        let profile = crate::auth::UserProfile {
+            id: user.id,
+            email: user.email.unwrap_or_default(),
+            created_at: user.created_at.unwrap_or_default(),
+        };
+        state.auth.set_user(profile).await;
+    }
+
+    Ok(state.auth.session().await)
+}
+
+/// Get the current authentication session state
+#[tauri::command]
+pub async fn auth_get_session(state: State<'_, AppState>) -> AppResult<crate::auth::AuthSession> {
+    let session = state.auth.session().await;
+
+    // If we have a token but no user info, try to fetch it
+    if session.is_authenticated && session.user.is_none() {
+        if let Some(token) = state.auth.access_token().await {
+            let client = reqwest::Client::new();
+            let response = client
+                .get(crate::auth::config::auth_user_url())
+                .header("apikey", crate::auth::config::SUPABASE_ANON_KEY)
+                .header("Authorization", format!("Bearer {}", token))
+                .send()
+                .await;
+
+            if let Ok(resp) = response {
+                if resp.status().is_success() {
+                    if let Ok(user) = resp.json::<crate::auth::SupabaseUser>().await {
+                        let profile = crate::auth::UserProfile {
+                            id: user.id,
+                            email: user.email.unwrap_or_default(),
+                            created_at: user.created_at.unwrap_or_default(),
+                        };
+                        state.auth.set_user(profile).await;
+                    }
+                }
+            }
+
+            // Also fetch subscription
+            let _ = fetch_and_store_subscription(&state, &token).await;
+        }
+    }
+
+    Ok(state.auth.session().await)
+}
+
+/// Get the current user's subscription info
+#[tauri::command]
+pub async fn auth_get_subscription(
+    state: State<'_, AppState>,
+) -> AppResult<Option<crate::auth::Subscription>> {
+    let token = state
+        .auth
+        .access_token()
+        .await
+        .ok_or_else(|| crate::error::AppError::AuthRequired("Not logged in".into()))?;
+
+    fetch_and_store_subscription(&state, &token).await?;
+
+    Ok(state.auth.session().await.subscription)
+}
+
+/// Helper: fetch subscription info from Supabase and store in AuthManager
+async fn fetch_and_store_subscription(
+    state: &State<'_, AppState>,
+    access_token: &str,
+) -> AppResult<()> {
+    let client = reqwest::Client::new();
+    let response = client
+        .get(crate::auth::config::subscriptions_url())
+        .header("apikey", crate::auth::config::SUPABASE_ANON_KEY)
+        .header("Authorization", format!("Bearer {}", access_token))
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) if resp.status().is_success() => {
+            if let Ok(rows) = resp.json::<Vec<crate::auth::SubscriptionRow>>().await {
+                if let Some(row) = rows.into_iter().next() {
+                    if let Some(plan) = row.plan {
+                        let sub = crate::auth::Subscription {
+                            plan_name: plan.name,
+                            display_name: plan.display_name,
+                            status: row.status,
+                            max_messages_per_day: plan.max_messages_per_day,
+                            max_tokens_per_day: plan.max_tokens_per_day,
+                            allowed_models: plan.allowed_models,
+                            expires_at: row.expires_at,
+                        };
+                        state.auth.set_subscription(Some(sub)).await;
+                        return Ok(());
+                    }
+                }
+            }
+            // No subscription found — set to None (free tier with no record)
+            state.auth.set_subscription(None).await;
+        }
+        _ => {
+            log::warn!("Failed to fetch subscription info");
+        }
+    }
+
     Ok(())
 }
