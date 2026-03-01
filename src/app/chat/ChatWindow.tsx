@@ -8,11 +8,15 @@ import { ToolCallCard } from "@/app/agent/ToolCallCard";
 import { MessageSquare } from "lucide-react";
 import { TemplatePicker } from "@/app/templates/TemplatePicker";
 import { useVirtualMessages } from "@/hooks/useVirtualMessages";
+import type { Message } from "@/types/message";
+
+/** Stable empty array to prevent infinite re-render in useVirtualMessages */
+const EMPTY_MESSAGES: Message[] = [];
 
 export function ChatWindow() {
   const activeConversationId = useChatStore((s) => s.activeConversationId);
   const messages = useChatStore((s) =>
-    s.activeConversationId ? (s.messages[s.activeConversationId] ?? []) : [],
+    s.activeConversationId ? (s.messages[s.activeConversationId] ?? EMPTY_MESSAGES) : EMPTY_MESSAGES,
   );
   const isStreaming = useChatStore((s) => s.isStreaming);
   const agentCalls = useAgentStore((s) => s.activeCalls);

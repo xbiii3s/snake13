@@ -48,11 +48,11 @@ export function useVirtualMessages(
   // Recalculate visible range on scroll
   const updateRange = useCallback(() => {
     if (!shouldVirtualize || !scrollRef.current) {
-      setRange({
-        start: 0,
-        end: messages.length,
-        topPadding: 0,
-        bottomPadding: 0,
+      setRange((prev) => {
+        if (prev.start === 0 && prev.end === messages.length && prev.topPadding === 0 && prev.bottomPadding === 0) {
+          return prev; // no change — avoid unnecessary re-render
+        }
+        return { start: 0, end: messages.length, topPadding: 0, bottomPadding: 0 };
       });
       return;
     }
@@ -98,7 +98,8 @@ export function useVirtualMessages(
     }
 
     setRange({ start: startIdx, end: endIdx, topPadding, bottomPadding });
-  }, [shouldVirtualize, messages, scrollRef, getEstimatedHeight]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldVirtualize, messages.length, scrollRef, getEstimatedHeight]);
 
   // Listen to scroll events
   useEffect(() => {

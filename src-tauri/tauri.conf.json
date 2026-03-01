@@ -45,15 +45,6 @@
       "minimumSystemVersion": "12.0"
     }
   },
-  "plugins": {
-    "global-shortcut": {
-      "shortcuts": ["CmdOrCtrl+Shift+Space"]
-    },
-    "notification": {
-      "enabled": true
-    },
-    "autostart": {
-      "macOSLaunchHandler": true
-    }
-  }
+  "plugins": {}
+
 }
