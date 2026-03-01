@@ -19,7 +19,10 @@ export function ProxyConfig() {
       const savedHost = await ipc.getSetting("proxy_host");
       const savedPort = await ipc.getSetting("proxy_port");
       const savedUser = await ipc.getSetting("proxy_username");
-      if (savedType) setProxyType(savedType as ProxyType);
+      const validTypes: ProxyType[] = ["none", "http", "socks5", "system"];
+      if (savedType && validTypes.includes(savedType as ProxyType)) {
+        setProxyType(savedType as ProxyType);
+      }
       if (savedHost) setHost(savedHost);
       if (savedPort) setPort(savedPort);
       if (savedUser) setUsername(savedUser);

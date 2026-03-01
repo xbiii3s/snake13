@@ -90,9 +90,19 @@ pub fn message_search(
     query: String,
     limit: Option<i64>,
 ) -> AppResult<Vec<crate::data::repo::message::SearchResult>> {
+    // Validate search query to prevent abuse
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+    if query.len() > 1000 {
+        return Err(crate::error::AppError::Validation(
+            "Search query must be 1000 characters or less".to_string(),
+        ));
+    }
+    let limit = limit.unwrap_or(20).min(100); // Cap maximum results
     state
         .db
-        .with_conn(|conn| MessageRepo::search(conn, &query, limit.unwrap_or(20)))
+        .with_conn(|conn| MessageRepo::search(conn, &query, limit))
 }
 
 // ===================== Chat Stream Command =====================

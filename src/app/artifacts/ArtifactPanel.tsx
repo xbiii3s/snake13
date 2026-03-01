@@ -86,9 +86,11 @@ export function ArtifactPanel({ artifact }: Props) {
             sandbox="allow-scripts"
           />
         ) : artifact.type === "svg" ? (
-          <div
-            className="flex items-center justify-center p-4 h-full bg-white"
-            dangerouslySetInnerHTML={{ __html: artifact.content }}
+          <iframe
+            srcDoc={`<!DOCTYPE html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#fff">${artifact.content}</body></html>`}
+            title={artifact.title}
+            className="w-full h-full border-0"
+            sandbox=""
           />
         ) : (
           <pre className="p-4 text-xs font-mono text-text-primary overflow-auto whitespace-pre-wrap leading-relaxed">

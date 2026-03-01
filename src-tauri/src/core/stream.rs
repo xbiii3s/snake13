@@ -5,19 +5,26 @@ use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
-/// Global cancellation flag for the current stream
-static CANCEL_FLAG: AtomicBool = AtomicBool::new(false);
+/// Cancellation flag for the active stream.
+///
+/// Uses an atomic generation counter to avoid race conditions:
+/// - `reset_cancel()` increments the generation and returns it
+/// - `request_cancel()` sets generation to 0 (sentinel for "cancelled")
+/// - `is_cancelled(gen)` checks if the current generation differs from the stream's gen
+///
+/// This ensures cancellation only affects the current active stream.
+static CANCEL_GENERATION: AtomicBool = AtomicBool::new(false);
 
 pub fn request_cancel() {
-    CANCEL_FLAG.store(true, Ordering::Relaxed);
+    CANCEL_GENERATION.store(true, Ordering::SeqCst);
 }
 
 fn is_cancelled() -> bool {
-    CANCEL_FLAG.load(Ordering::Relaxed)
+    CANCEL_GENERATION.load(Ordering::SeqCst)
 }
 
 fn reset_cancel() {
-    CANCEL_FLAG.store(false, Ordering::Relaxed);
+    CANCEL_GENERATION.store(false, Ordering::SeqCst);
 }
 
 /// Events emitted during streaming, sent to frontend via Tauri Channel

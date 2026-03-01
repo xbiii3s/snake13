@@ -25,7 +25,10 @@ pub fn test_connection() -> Connection {
 impl Database {
     /// Open or create the database at the given path
     pub fn new(db_path: PathBuf) -> AppResult<Self> {
-        std::fs::create_dir_all(db_path.parent().unwrap_or(&db_path))
+        let parent = db_path
+            .parent()
+            .ok_or_else(|| AppError::Internal("Invalid database path: no parent directory".to_string()))?;
+        std::fs::create_dir_all(parent)
             .map_err(|e| AppError::Internal(format!("Failed to create data directory: {e}")))?;
 
         let conn = Connection::open(&db_path)?;
