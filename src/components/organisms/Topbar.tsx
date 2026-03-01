@@ -35,7 +35,7 @@ export function Topbar() {
         {agentEnabled && (
           <span className="flex items-center gap-1 text-[10px] text-accent bg-accent/10 px-2 py-0.5 rounded-full">
             <Bot size={10} />
-            Agent ({agentTools.length} tools)
+            智能体（{agentTools.length} 个工具）
           </span>
         )}
 
@@ -59,13 +59,13 @@ export function Topbar() {
           className={`p-1.5 transition-colors rounded hover:bg-bg-hover ${
             artifactPanelOpen ? "text-accent" : "text-text-muted hover:text-text-secondary"
           }`}
-          title="Toggle Artifact Panel"
+          title="切换 Artifact 面板"
         >
           {artifactPanelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
         </button>
 
         {/* Connection status */}
-        <div className="flex items-center gap-1.5" title="Mock mode (connected)">
+        <div className="flex items-center gap-1.5" title="模拟模式（已连接）">
           <Wifi size={12} className="text-success" />
           <span className="w-1.5 h-1.5 rounded-full bg-success" />
         </div>
@@ -74,7 +74,7 @@ export function Topbar() {
         <button
           onClick={() => setSettingsOpen(true)}
           className="p-1.5 text-text-muted hover:text-text-secondary transition-colors rounded hover:bg-bg-hover"
-          title="Settings (⌘,)"
+          title="设置 (⌘,)"
         >
           <Settings size={14} />
         </button>

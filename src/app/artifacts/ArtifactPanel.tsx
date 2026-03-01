@@ -55,21 +55,21 @@ export function ArtifactPanel({ artifact }: Props) {
           <button
             onClick={handleCopy}
             className="p-1.5 text-text-muted hover:text-text-primary transition-colors"
-            title="Copy"
+            title="复制"
           >
             {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
           </button>
           <button
             onClick={() => setMaximized(!maximized)}
             className="p-1.5 text-text-muted hover:text-text-primary transition-colors"
-            title={maximized ? "Minimize" : "Maximize"}
+            title={maximized ? "最小化" : "最大化"}
           >
             {maximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
           <button
             onClick={toggleArtifactPanel}
             className="p-1.5 text-text-muted hover:text-text-primary transition-colors"
-            title="Close"
+            title="关闭"
           >
             <X size={14} />
           </button>

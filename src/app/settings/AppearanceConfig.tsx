@@ -31,21 +31,21 @@ export function AppearanceConfig() {
 
   return (
     <div>
-      <h3 className="text-lg font-semibold mb-4">Appearance</h3>
+      <h3 className="text-lg font-semibold mb-4">外观</h3>
 
       <div className="space-y-5">
         {/* Theme */}
         <div>
-          <label className="text-sm text-text-secondary block mb-2">Theme</label>
+          <label className="text-sm text-text-secondary block mb-2">主题</label>
           <div className="grid grid-cols-3 gap-2">
             <button className="py-3 text-sm rounded-[var(--radius-sm)] border border-accent bg-accent/10 text-accent">
-              Dark
+              深色
             </button>
             <button className="py-3 text-sm rounded-[var(--radius-sm)] border border-border bg-bg-elevated text-text-muted cursor-not-allowed opacity-50">
-              Light (Soon)
+              浅色（即将推出）
             </button>
             <button className="py-3 text-sm rounded-[var(--radius-sm)] border border-border bg-bg-elevated text-text-muted cursor-not-allowed opacity-50">
-              System (Soon)
+              跟随系统（即将推出）
             </button>
           </div>
         </div>
@@ -53,7 +53,7 @@ export function AppearanceConfig() {
         {/* Font size */}
         <div>
           <label className="text-sm text-text-secondary block mb-2">
-            Font Size: {fontSize}px
+            字体大小：{fontSize}px
           </label>
           <input
             type="range"
@@ -72,8 +72,8 @@ export function AppearanceConfig() {
         {/* Show token count */}
         <div className="flex items-center justify-between py-2">
           <div>
-            <span className="text-sm text-text-primary block">Show token count</span>
-            <span className="text-xs text-text-muted">Display tokens and cost per message</span>
+            <span className="text-sm text-text-primary block">显示 Token 计数</span>
+            <span className="text-xs text-text-muted">显示每条消息的 Token 数和费用</span>
           </div>
           <button
             onClick={() => setShowTokens(!showTokens)}
@@ -91,14 +91,14 @@ export function AppearanceConfig() {
 
         {/* Preview */}
         <div>
-          <label className="text-sm text-text-secondary block mb-2">Preview</label>
+          <label className="text-sm text-text-secondary block mb-2">预览</label>
           <div
             className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-4"
             style={{ fontSize: `${fontSize}px` }}
           >
-            <p className="text-text-primary">This is how your messages will look.</p>
-            <p className="text-text-secondary mt-1">Secondary text style.</p>
-            <code className="text-accent-light bg-bg-primary px-1 rounded text-sm">code block</code>
+            <p className="text-text-primary">这是你的消息显示效果。</p>
+            <p className="text-text-secondary mt-1">辅助文本样式。</p>
+            <code className="text-accent-light bg-bg-primary px-1 rounded text-sm">代码块</code>
           </div>
         </div>
 
@@ -109,7 +109,7 @@ export function AppearanceConfig() {
             className="flex items-center gap-1.5 px-4 py-2 bg-accent text-text-inverse text-sm rounded-[var(--radius-sm)] hover:bg-accent-hover transition-colors"
           >
             <Save size={14} />
-            {saved ? "Saved!" : "Save Settings"}
+            {saved ? "已保存！" : "保存设置"}
           </button>
         </div>
       </div>

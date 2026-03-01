@@ -39,10 +39,9 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="w-16 h-16 rounded-2xl bg-error/10 flex items-center justify-center mx-auto">
               <span className="text-2xl">⚠</span>
             </div>
-            <h2 className="text-lg font-semibold">Something went wrong</h2>
+            <h2 className="text-lg font-semibold">出现错误</h2>
             <p className="text-sm text-text-muted leading-relaxed">
-              An unexpected error occurred. You can try reloading the page or
-              resetting the application state.
+              发生了意外错误。你可以尝试重试或重新加载页面。
             </p>
             {this.state.error && (
               <pre className="text-xs text-error bg-bg-elevated rounded-lg p-3 text-left overflow-auto max-h-32">
@@ -54,13 +53,13 @@ export class ErrorBoundary extends Component<Props, State> {
                 onClick={this.handleReset}
                 className="px-4 py-2 bg-accent text-text-inverse text-sm rounded-lg hover:bg-accent-hover transition-colors"
               >
-                Try Again
+                重试
               </button>
               <button
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-bg-elevated border border-border text-text-primary text-sm rounded-lg hover:bg-bg-hover transition-colors"
               >
-                Reload Page
+                重新加载
               </button>
             </div>
           </div>

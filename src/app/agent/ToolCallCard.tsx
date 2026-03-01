@@ -44,14 +44,14 @@ export function ToolCallCard({ call }: Props) {
       {expanded && (
         <div className="px-3 pb-2 space-y-2">
           <div>
-            <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Input</p>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">输入</p>
             <pre className="text-xs bg-bg-primary rounded p-2 overflow-x-auto max-h-32 font-mono text-text-secondary">
               {JSON.stringify(call.input, null, 2)}
             </pre>
           </div>
           {call.output && (
             <div>
-              <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Output</p>
+              <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">输出</p>
               <pre className={cn(
                 "text-xs bg-bg-primary rounded p-2 overflow-x-auto max-h-48 font-mono",
                 call.output.is_error ? "text-error" : "text-text-secondary",

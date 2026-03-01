@@ -38,7 +38,7 @@ function CodeBlock({ className, children, ...props }: ComponentPropsWithoutRef<"
         <button
           onClick={handleCopy}
           className="text-text-muted hover:text-text-primary transition-colors p-1"
-          title="Copy code"
+          title="复制代码"
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>

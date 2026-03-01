@@ -58,12 +58,12 @@ export function ProxyConfig() {
 
   return (
     <div>
-      <h3 className="text-lg font-semibold mb-4">Proxy Configuration</h3>
+      <h3 className="text-lg font-semibold mb-4">代理配置</h3>
 
       <div className="space-y-4">
         {/* Proxy Type */}
         <div>
-          <label className="text-sm text-text-secondary block mb-2">Proxy Type</label>
+          <label className="text-sm text-text-secondary block mb-2">代理类型</label>
           <div className="grid grid-cols-4 gap-2">
             {(["none", "http", "socks5", "system"] as ProxyType[]).map((type) => (
               <button
@@ -75,7 +75,7 @@ export function ProxyConfig() {
                     : "border-border bg-bg-elevated text-text-secondary hover:border-accent/30"
                 }`}
               >
-                {type === "none" ? "Direct" : type === "socks5" ? "SOCKS5" : type === "http" ? "HTTP" : "System"}
+                {type === "none" ? "直连" : type === "socks5" ? "SOCKS5" : type === "http" ? "HTTP" : "系统"}
               </button>
             ))}
           </div>
@@ -86,7 +86,7 @@ export function ProxyConfig() {
           <>
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
-                <label className="text-sm text-text-secondary block mb-1">Host</label>
+                <label className="text-sm text-text-secondary block mb-1">主机</label>
                 <input
                   type="text"
                   value={host}
@@ -96,7 +96,7 @@ export function ProxyConfig() {
                 />
               </div>
               <div>
-                <label className="text-sm text-text-secondary block mb-1">Port</label>
+                <label className="text-sm text-text-secondary block mb-1">端口</label>
                 <input
                   type="text"
                   value={port}
@@ -110,7 +110,7 @@ export function ProxyConfig() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm text-text-secondary block mb-1">
-                  Username <span className="text-text-muted">(optional)</span>
+                  用户名 <span className="text-text-muted">（可选）</span>
                 </label>
                 <input
                   type="text"
@@ -121,7 +121,7 @@ export function ProxyConfig() {
               </div>
               <div>
                 <label className="text-sm text-text-secondary block mb-1">
-                  Password <span className="text-text-muted">(optional)</span>
+                  密码 <span className="text-text-muted">（可选）</span>
                 </label>
                 <input
                   type="password"
@@ -143,10 +143,10 @@ export function ProxyConfig() {
           >
             {testStatus === "testing" ? (
               <span className="flex items-center gap-1.5">
-                <Loader size={14} className="animate-spin" /> Testing...
+                <Loader size={14} className="animate-spin" /> 测试中...
               </span>
             ) : (
-              "Test Connection"
+              "测试连接"
             )}
           </button>
           <button
@@ -154,17 +154,17 @@ export function ProxyConfig() {
             className="flex items-center gap-1.5 px-4 py-2 bg-accent text-text-inverse text-sm rounded-[var(--radius-sm)] hover:bg-accent-hover transition-colors"
           >
             <Save size={14} />
-            {saved ? "Saved!" : "Save"}
+            {saved ? "已保存！" : "保存"}
           </button>
         </div>
         {testStatus === "success" && (
           <p className="text-xs text-success flex items-center gap-1">
-            <CheckCircle size={12} /> Connection successful
+            <CheckCircle size={12} /> 连接成功
           </p>
         )}
         {testStatus === "error" && (
           <p className="text-xs text-error flex items-center gap-1">
-            <XCircle size={12} /> Connection failed
+            <XCircle size={12} /> 连接失败
           </p>
         )}
       </div>

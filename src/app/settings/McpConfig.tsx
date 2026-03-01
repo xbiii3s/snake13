@@ -50,12 +50,12 @@ export function McpConfig() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">MCP Servers</h3>
+        <h3 className="text-lg font-semibold">MCP 服务器</h3>
         <div className="flex items-center gap-2">
           <button
             onClick={() => loadServers()}
             className="p-1.5 text-text-muted hover:text-text-primary transition-colors rounded hover:bg-bg-hover"
-            title="Refresh"
+            title="刷新"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
@@ -64,14 +64,14 @@ export function McpConfig() {
             className="flex items-center gap-1 text-xs px-2 py-1 text-text-muted hover:text-text-primary transition-colors rounded hover:bg-bg-hover"
           >
             <Upload size={12} />
-            Import
+            导入
           </button>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="flex items-center gap-1 text-xs px-2 py-1 bg-accent/10 text-accent rounded hover:bg-accent/20 transition-colors"
           >
             <Plus size={12} />
-            Add
+            添加
           </button>
         </div>
       </div>
@@ -80,7 +80,7 @@ export function McpConfig() {
       {showImport && (
         <div className="mb-4 p-3 bg-bg-elevated rounded-[var(--radius-sm)] border border-border">
           <p className="text-xs text-text-muted mb-2">
-            Paste your Claude Desktop config JSON (claude_desktop_config.json)
+            粘贴你的 Claude Desktop 配置 JSON（claude_desktop_config.json）
           </p>
           <textarea
             value={importJson}
@@ -93,14 +93,14 @@ export function McpConfig() {
               onClick={() => setShowImport(false)}
               className="text-xs px-3 py-1 text-text-muted hover:text-text-primary"
             >
-              Cancel
+              取消
             </button>
             <button
               onClick={handleImport}
               disabled={!importJson.trim()}
               className="text-xs px-3 py-1 bg-accent text-text-inverse rounded disabled:opacity-50"
             >
-              Import
+              导入
             </button>
           </div>
         </div>
@@ -113,21 +113,21 @@ export function McpConfig() {
             type="text"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Server name"
+            placeholder="服务器名称"
             className="w-full bg-bg-primary border border-border rounded text-sm px-3 py-1.5 text-text-primary outline-none focus:border-accent/50"
           />
           <input
             type="text"
             value={newCommand}
             onChange={(e) => setNewCommand(e.target.value)}
-            placeholder="Command (e.g. npx, node, python)"
+            placeholder="命令（如 npx、node、python）"
             className="w-full bg-bg-primary border border-border rounded text-sm px-3 py-1.5 text-text-primary outline-none focus:border-accent/50"
           />
           <input
             type="text"
             value={newArgs}
             onChange={(e) => setNewArgs(e.target.value)}
-            placeholder="Arguments (space-separated)"
+            placeholder="参数（空格分隔）"
             className="w-full bg-bg-primary border border-border rounded text-sm px-3 py-1.5 text-text-primary outline-none focus:border-accent/50"
           />
           <div className="flex justify-end gap-2">
@@ -135,14 +135,14 @@ export function McpConfig() {
               onClick={() => setShowAddForm(false)}
               className="text-xs px-3 py-1 text-text-muted hover:text-text-primary"
             >
-              Cancel
+              取消
             </button>
             <button
               onClick={handleAdd}
               disabled={!newName.trim() || !newCommand.trim()}
               className="text-xs px-3 py-1 bg-accent text-text-inverse rounded disabled:opacity-50"
             >
-              Add Server
+              添加服务器
             </button>
           </div>
         </div>
@@ -152,7 +152,7 @@ export function McpConfig() {
       <div className="space-y-2">
         {servers.length === 0 ? (
           <div className="text-center py-8 text-text-muted text-sm">
-            No MCP servers configured. Add one or import from Claude Desktop.
+            尚未配置 MCP 服务器。可添加新服务器或从 Claude Desktop 导入。
           </div>
         ) : (
           servers.map((server) => (
@@ -203,14 +203,16 @@ function ServerCard({
         <div className="flex items-center gap-2">
           <span className={`w-2 h-2 rounded-full ${statusDot}`} />
           <span className="text-sm font-medium text-text-primary">{server.config.name}</span>
-          <span className={`text-[10px] ${statusColor}`}>{server.status}</span>
+          <span className={`text-[10px] ${statusColor}`}>
+            {server.status === "disconnected" ? "未连接" : server.status === "connecting" ? "连接中" : server.status === "connected" ? "已连接" : server.status}
+          </span>
         </div>
         <div className="flex items-center gap-1">
           {server.status === "connected" ? (
             <button
               onClick={onDisconnect}
               className="p-1.5 text-text-muted hover:text-error transition-colors rounded hover:bg-bg-hover"
-              title="Disconnect"
+              title="断开连接"
             >
               <PowerOff size={12} />
             </button>
@@ -218,7 +220,7 @@ function ServerCard({
             <button
               onClick={onConnect}
               className="p-1.5 text-text-muted hover:text-success transition-colors rounded hover:bg-bg-hover"
-              title="Connect"
+              title="连接"
               disabled={server.status === "connecting"}
             >
               <Power size={12} />
@@ -227,7 +229,7 @@ function ServerCard({
           <button
             onClick={onRemove}
             className="p-1.5 text-text-muted hover:text-error transition-colors rounded hover:bg-bg-hover"
-            title="Remove"
+            title="删除"
           >
             <Trash2 size={12} />
           </button>
@@ -252,7 +254,7 @@ function ServerCard({
             className="flex items-center gap-1 text-[10px] text-text-muted hover:text-text-secondary"
           >
             <Wrench size={10} />
-            {server.tools.length} tools
+            {server.tools.length} 个工具
           </button>
           {expanded && (
             <div className="mt-1 space-y-1 pl-3">

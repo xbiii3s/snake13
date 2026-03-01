@@ -22,7 +22,7 @@ export function TabBar() {
 
   const handleNewTab = async () => {
     const id = await createConversation();
-    openTab(id, "New Chat");
+    openTab(id, "新对话");
   };
 
   return (
@@ -53,7 +53,7 @@ export function TabBar() {
       <button
         onClick={handleNewTab}
         className="p-1.5 text-text-muted hover:text-text-secondary hover:bg-bg-hover rounded transition-colors ml-1"
-        title="New tab"
+        title="新标签页"
       >
         <Plus size={12} />
       </button>

@@ -16,10 +16,10 @@ export function AgentToggle({ enabled, onToggle }: Props) {
           ? "bg-accent/20 text-accent border border-accent/30"
           : "bg-bg-elevated text-text-muted border border-border hover:border-accent/20 hover:text-text-secondary",
       )}
-      title={enabled ? "Agent mode ON — click to disable" : "Enable Agent mode"}
+      title={enabled ? "智能体已开启 — 点击关闭" : "启用智能体模式"}
     >
       <Bot size={12} />
-      <span>Agent {enabled ? "ON" : "OFF"}</span>
+      <span>智能体 {enabled ? "开" : "关"}</span>
     </button>
   );
 }

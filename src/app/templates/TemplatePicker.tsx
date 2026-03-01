@@ -5,10 +5,10 @@ import type { Template } from "@/lib/ipc";
 import { useChatStore } from "@/stores/chatStore";
 
 const DEFAULT_TEMPLATES = [
-  { name: "General Chat", description: "Free conversation with Claude", system_prompt: "", model_id: "claude-sonnet-4-5", icon: "sparkles" },
-  { name: "Code Assistant", description: "Help with coding, debugging, and code review", system_prompt: "You are an expert software engineer. Help the user with coding tasks, debugging, code review, and software design. Write clean, well-documented code with proper error handling.", model_id: "claude-sonnet-4-5", icon: "code" },
-  { name: "Writing Helper", description: "Creative writing, editing, and translation", system_prompt: "You are a skilled writer and editor. Help the user with creative writing, article editing, translation, and improving their text. Be attentive to tone, style, and clarity.", model_id: "claude-sonnet-4-5", icon: "pen" },
-  { name: "Data Analyst", description: "Data analysis, visualization, and insights", system_prompt: "You are a data analysis expert. Help the user analyze data, create visualizations, write SQL queries, and extract insights from datasets. Use clear explanations and concrete examples.", model_id: "claude-sonnet-4-5", icon: "chart" },
+  { name: "通用对话", description: "与 Claude 自由对话", system_prompt: "", model_id: "claude-sonnet-4-5", icon: "sparkles" },
+  { name: "代码助手", description: "辅助编码、调试和代码审查", system_prompt: "You are an expert software engineer. Help the user with coding tasks, debugging, code review, and software design. Write clean, well-documented code with proper error handling.", model_id: "claude-sonnet-4-5", icon: "code" },
+  { name: "写作助手", description: "创意写作、编辑和翻译", system_prompt: "You are a skilled writer and editor. Help the user with creative writing, article editing, translation, and improving their text. Be attentive to tone, style, and clarity.", model_id: "claude-sonnet-4-5", icon: "pen" },
+  { name: "数据分析师", description: "数据分析、可视化和洞察", system_prompt: "You are a data analysis expert. Help the user analyze data, create visualizations, write SQL queries, and extract insights from datasets. Use clear explanations and concrete examples.", model_id: "claude-sonnet-4-5", icon: "chart" },
 ];
 
 const iconMap: Record<string, React.ElementType> = {
@@ -61,7 +61,7 @@ export function TemplatePicker({ onSelect }: Props) {
 
   return (
     <div className="w-full max-w-2xl mx-auto">
-      <h3 className="text-sm font-medium text-text-secondary mb-3">Start from a template</h3>
+      <h3 className="text-sm font-medium text-text-secondary mb-3">从模板开始</h3>
       <div className="grid grid-cols-2 gap-2">
         {allTemplates.map((tmpl) => {
           const IconComponent = iconMap[('icon' in tmpl ? tmpl.icon : undefined) ?? "default"] ?? FileText;

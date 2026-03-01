@@ -57,7 +57,7 @@ export function SpotlightWindow({ onClose }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Claude anything..."
+            placeholder="问 Claude 任何问题..."
             className="flex-1 bg-transparent text-text-primary text-base outline-none placeholder:text-text-muted"
           />
           {query.trim() && (
@@ -74,7 +74,7 @@ export function SpotlightWindow({ onClose }: Props) {
         {recentConversations.length > 0 && !query && (
           <div className="p-2">
             <div className="text-[10px] text-text-muted uppercase tracking-wider px-2 py-1">
-              Recent Conversations
+              最近的对话
             </div>
             {recentConversations.map((conv) => (
               <button
@@ -87,7 +87,7 @@ export function SpotlightWindow({ onClose }: Props) {
               >
                 <MessageSquare size={14} className="text-text-muted flex-shrink-0" />
                 <span className="text-sm text-text-primary truncate">
-                  {conv.title || "Untitled"}
+                  {conv.title || "无标题"}
                 </span>
               </button>
             ))}
@@ -103,7 +103,7 @@ export function SpotlightWindow({ onClose }: Props) {
             >
               <ArrowRight size={14} className="text-accent flex-shrink-0" />
               <span className="text-sm text-text-primary">
-                Send as new conversation
+                发送为新对话
               </span>
             </button>
           </div>

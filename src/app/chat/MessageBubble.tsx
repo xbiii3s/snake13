@@ -41,9 +41,9 @@ export function MessageBubble({ message }: Props) {
               <Brain size={12} />
               {thinkingOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               <span>
-                Thinking
+                思考中
                 {message.thinking_duration_ms
-                  ? ` (${(message.thinking_duration_ms / 1000).toFixed(1)}s)`
+                  ? `（思考了 ${(message.thinking_duration_ms / 1000).toFixed(1)} 秒）`
                   : ""}
               </span>
             </button>
@@ -75,7 +75,7 @@ export function MessageBubble({ message }: Props) {
           <button
             onClick={handleCopy}
             className="text-text-muted hover:text-text-secondary transition-colors p-1"
-            title="Copy"
+            title="复制"
           >
             {copied ? <Check size={12} /> : <Copy size={12} />}
           </button>
@@ -87,7 +87,7 @@ export function MessageBubble({ message }: Props) {
               useChatStore.getState().setActiveConversation(forked.id);
             }}
             className="text-text-muted hover:text-text-secondary transition-colors p-1"
-            title="Fork from here"
+            title="从此处分叉"
           >
             <GitBranch size={12} />
           </button>

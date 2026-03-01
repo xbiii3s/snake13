@@ -28,7 +28,7 @@ export function StreamRenderer() {
               <Brain size={12} />
               {thinkingOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               <span>
-                {streaming.isThinking ? "Thinking..." : `Thought for ${(streaming.thinkingDuration / 1000).toFixed(1)}s`}
+                {streaming.isThinking ? "思考中..." : `思考了 ${(streaming.thinkingDuration / 1000).toFixed(1)} 秒`}
               </span>
               {streaming.isThinking && (
                 <Loader size={10} className="animate-spin" />
@@ -55,7 +55,7 @@ export function StreamRenderer() {
         {!streaming.contentText && !streaming.isThinking && !streaming.thinkingText && (
           <div className="flex items-center gap-2 text-text-muted text-sm py-2">
             <Loader size={14} className="animate-spin" />
-            <span>Generating...</span>
+            <span>生成中...</span>
           </div>
         )}
       </div>

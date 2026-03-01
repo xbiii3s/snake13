@@ -39,7 +39,7 @@ function getModelDisplayName(modelId: string): string {
   if (modelId.includes("opus")) return "Claude Opus";
   if (modelId.includes("sonnet")) return "Claude Sonnet";
   if (modelId.includes("haiku")) return "Claude Haiku";
-  if (modelId === "all") return "All Models";
+  if (modelId === "all") return "所有模型";
   return modelId;
 }
 
@@ -92,7 +92,7 @@ export function UsagePanel() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Token Usage</h3>
+        <h3 className="text-lg font-semibold">Token 用量</h3>
         <div className="flex items-center gap-2">
           <div className="flex bg-bg-elevated border border-border rounded-[var(--radius-sm)] overflow-hidden">
             {(["7d", "30d", "all"] as DateRange[]).map((range) => (
@@ -105,14 +105,14 @@ export function UsagePanel() {
                     : "text-text-secondary hover:text-text-primary"
                 }`}
               >
-                {range === "7d" ? "7 Days" : range === "30d" ? "30 Days" : "All Time"}
+                {range === "7d" ? "7 天" : range === "30d" ? "30 天" : "全部"}
               </button>
             ))}
           </div>
           <button
             onClick={loadData}
             className="p-1.5 text-text-muted hover:text-text-primary transition-colors"
-            title="Refresh"
+            title="刷新"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
@@ -125,39 +125,39 @@ export function UsagePanel() {
           <div className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-3">
             <div className="flex items-center gap-1.5 text-text-muted mb-1">
               <Zap size={12} />
-              <span className="text-xs">Total Tokens</span>
+              <span className="text-xs">总 Token 数</span>
             </div>
             <div className="text-lg font-semibold text-text-primary">
               {formatTokenCount(totalUsage.total_input_tokens + totalUsage.total_output_tokens)}
             </div>
             <div className="text-xs text-text-muted mt-0.5">
-              {formatTokenCount(totalUsage.total_input_tokens)} in / {formatTokenCount(totalUsage.total_output_tokens)} out
+              {formatTokenCount(totalUsage.total_input_tokens)} 输入 / {formatTokenCount(totalUsage.total_output_tokens)} 输出
             </div>
           </div>
 
           <div className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-3">
             <div className="flex items-center gap-1.5 text-text-muted mb-1">
               <DollarSign size={12} />
-              <span className="text-xs">Total Cost</span>
+              <span className="text-xs">总费用</span>
             </div>
             <div className="text-lg font-semibold text-accent">
               {formatCost(totalUsage.total_cost)}
             </div>
             <div className="text-xs text-text-muted mt-0.5">
-              all time
+              累计
             </div>
           </div>
 
           <div className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-3">
             <div className="flex items-center gap-1.5 text-text-muted mb-1">
               <MessageSquare size={12} />
-              <span className="text-xs">Messages</span>
+              <span className="text-xs">消息数</span>
             </div>
             <div className="text-lg font-semibold text-text-primary">
               {totalUsage.message_count.toLocaleString()}
             </div>
             <div className="text-xs text-text-muted mt-0.5">
-              total requests
+              总请求
             </div>
           </div>
         </div>
@@ -166,7 +166,7 @@ export function UsagePanel() {
       {/* Per-Model Breakdown */}
       {modelSummary.length > 0 && (
         <div className="mb-5">
-          <h4 className="text-sm font-medium text-text-secondary mb-2">By Model</h4>
+          <h4 className="text-sm font-medium text-text-secondary mb-2">按模型</h4>
           <div className="space-y-2">
             {modelSummary.map((model) => {
               const totalTokens = model.total_input_tokens + model.total_output_tokens;
@@ -187,7 +187,7 @@ export function UsagePanel() {
                         {getModelDisplayName(model.model_id)}
                       </span>
                       <span className="text-xs text-text-muted">
-                        {model.message_count} requests
+                        {model.message_count} 次请求
                       </span>
                     </div>
                     <span className="text-sm font-medium text-text-primary">
@@ -207,10 +207,10 @@ export function UsagePanel() {
                   </div>
                   <div className="flex gap-4 mt-1.5">
                     <span className="text-xs text-text-muted">
-                      In: {formatTokenCount(model.total_input_tokens)}
+                      输入：{formatTokenCount(model.total_input_tokens)}
                     </span>
                     <span className="text-xs text-text-muted">
-                      Out: {formatTokenCount(model.total_output_tokens)}
+                      输出：{formatTokenCount(model.total_output_tokens)}
                     </span>
                   </div>
                 </div>
@@ -224,7 +224,7 @@ export function UsagePanel() {
       <div>
         <div className="flex items-center gap-1.5 mb-2">
           <BarChart3 size={14} className="text-text-muted" />
-          <h4 className="text-sm font-medium text-text-secondary">Daily Usage</h4>
+          <h4 className="text-sm font-medium text-text-secondary">每日用量</h4>
         </div>
         {dailyUsage.length > 0 ? (
           <div className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-3">
@@ -252,7 +252,7 @@ export function UsagePanel() {
           </div>
         ) : (
           <div className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-6 text-center">
-            <p className="text-sm text-text-muted">No usage data for this period</p>
+            <p className="text-sm text-text-muted">该时段暂无用量数据</p>
           </div>
         )}
       </div>
@@ -261,7 +261,7 @@ export function UsagePanel() {
       {!loading && modelSummary.length === 0 && (
         <div className="text-center py-4">
           <p className="text-sm text-text-muted">
-            No usage data yet. Start a conversation to track your token usage.
+            暂无用量数据。开始对话后将自动记录 Token 用量。
           </p>
         </div>
       )}

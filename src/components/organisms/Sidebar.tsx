@@ -157,7 +157,7 @@ export function Sidebar() {
             deleteConversation(conv.id);
           }}
           className="p-1 text-text-muted hover:text-error transition-colors"
-          title="Delete"
+          title="删除"
         >
           <Trash2 size={12} />
         </button>
@@ -170,13 +170,13 @@ export function Sidebar() {
             onClick={(e) => { e.stopPropagation(); handleExport(conv.id, "json"); }}
             className="w-full text-left px-3 py-1.5 text-xs hover:bg-bg-hover flex items-center gap-2"
           >
-            <Download size={11} /> Export JSON
+            <Download size={11} /> 导出 JSON
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleExport(conv.id, "markdown"); }}
             className="w-full text-left px-3 py-1.5 text-xs hover:bg-bg-hover flex items-center gap-2"
           >
-            <Download size={11} /> Export Markdown
+            <Download size={11} /> 导出 Markdown
           </button>
         </div>
       )}
@@ -203,12 +203,12 @@ export function Sidebar() {
             className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-[var(--radius-sm)] bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition-colors"
           >
             <Plus size={16} />
-            New Chat
+            新对话
           </button>
           <button
             onClick={handleImport}
             className="p-2 rounded-[var(--radius-sm)] bg-bg-elevated border border-border text-text-muted hover:text-text-primary hover:border-accent/30 transition-colors"
-            title="Import conversation"
+            title="导入对话"
           >
             <Upload size={14} />
           </button>
@@ -223,7 +223,7 @@ export function Sidebar() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search conversations..."
+            placeholder="搜索对话..."
             className="w-full bg-bg-primary border border-border rounded-[var(--radius-sm)] pl-8 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted outline-none focus:border-accent/50 transition-colors"
           />
         </div>
@@ -269,13 +269,13 @@ export function Sidebar() {
           className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-text-muted hover:text-text-secondary rounded transition-colors mb-2"
         >
           <FolderPlus size={12} />
-          <span>New Folder</span>
+          <span>新建文件夹</span>
         </button>
 
         {/* Unfiled conversations */}
         {unfiledConversations.length === 0 && folders.length === 0 ? (
           <p className="text-text-muted text-xs px-2 py-4 text-center">
-            {searchQuery ? "No matching conversations" : "No conversations yet"}
+            {searchQuery ? "没有匹配的对话" : "还没有对话"}
           </p>
         ) : (
           <div className="space-y-0.5">

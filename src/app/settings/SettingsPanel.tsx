@@ -15,13 +15,13 @@ type SettingsTab = "api" | "proxy" | "appearance" | "shortcuts" | "agent" | "mcp
 
 const TABS: Array<{ id: SettingsTab; label: string; icon: typeof Key }> = [
   { id: "api", label: "API", icon: Key },
-  { id: "proxy", label: "Proxy", icon: Globe },
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
-  { id: "agent", label: "Agent", icon: Bot },
+  { id: "proxy", label: "代理", icon: Globe },
+  { id: "appearance", label: "外观", icon: Palette },
+  { id: "shortcuts", label: "快捷键", icon: Keyboard },
+  { id: "agent", label: "智能体", icon: Bot },
   { id: "mcp", label: "MCP", icon: Plug },
-  { id: "usage", label: "Usage", icon: BarChart3 },
-  { id: "general", label: "General", icon: Settings },
+  { id: "usage", label: "用量", icon: BarChart3 },
+  { id: "general", label: "通用", icon: Settings },
 ];
 
 export function SettingsPanel({ onClose }: Props) {
@@ -33,7 +33,7 @@ export function SettingsPanel({ onClose }: Props) {
         {/* Settings sidebar */}
         <div className="w-[180px] bg-bg-secondary border-r border-border p-3 space-y-1">
           <div className="flex items-center justify-between mb-4 px-2">
-            <span className="text-sm font-semibold text-text-primary">Settings</span>
+            <span className="text-sm font-semibold text-text-primary">设置</span>
             <button
               onClick={onClose}
               className="p-1 text-text-muted hover:text-text-primary transition-colors"
@@ -79,21 +79,21 @@ export function SettingsPanel({ onClose }: Props) {
 
 function ShortcutsConfig() {
   const SHORTCUTS = [
-    { keys: "\u2318 N", action: "New conversation", description: "Create a new chat" },
-    { keys: "\u2318 W", action: "Close tab", description: "Close the current tab" },
-    { keys: "\u2318 K", action: "Search", description: "Open search / spotlight" },
-    { keys: "\u2318 ,", action: "Settings", description: "Open settings panel" },
-    { keys: "\u2318 \u21e7 Space", action: "Spotlight", description: "Global quick-ask (works when minimized)" },
-    { keys: "Enter", action: "Send message", description: "Send the current message" },
-    { keys: "Shift+Enter", action: "New line", description: "Insert a line break" },
-    { keys: "Escape", action: "Cancel / Close", description: "Cancel streaming or close panels" },
+    { keys: "\u2318 N", action: "新建对话", description: "创建新对话" },
+    { keys: "\u2318 W", action: "关闭标签页", description: "关闭当前标签页" },
+    { keys: "\u2318 K", action: "搜索", description: "打开搜索 / 快捷窗口" },
+    { keys: "\u2318 ,", action: "设置", description: "打开设置面板" },
+    { keys: "\u2318 \u21e7 Space", action: "快捷窗口", description: "全局快捷提问（最小化时可用）" },
+    { keys: "Enter", action: "发送消息", description: "发送当前消息" },
+    { keys: "Shift+Enter", action: "换行", description: "插入换行" },
+    { keys: "Escape", action: "取消 / 关闭", description: "取消生成或关闭面板" },
   ];
 
   return (
     <div>
-      <h3 className="text-lg font-semibold mb-4">Keyboard Shortcuts</h3>
+      <h3 className="text-lg font-semibold mb-4">键盘快捷键</h3>
       <p className="text-xs text-text-muted mb-4">
-        Global shortcuts work even when the app is in the background.
+        全局快捷键在应用后台运行时仍然有效。
       </p>
       <div className="space-y-1">
         {SHORTCUTS.map((s) => (
@@ -113,16 +113,16 @@ function ShortcutsConfig() {
 }
 
 const TOOL_PERMISSIONS = [
-  { key: "fs_read", name: "File Read", defaultLevel: "auto" },
-  { key: "fs_write", name: "File Write", defaultLevel: "approval" },
-  { key: "fs_list", name: "File List", defaultLevel: "auto" },
-  { key: "fs_search", name: "File Search", defaultLevel: "auto" },
-  { key: "shell_exec", name: "Shell Execute", defaultLevel: "approval" },
-  { key: "web_search", name: "Web Search", defaultLevel: "auto" },
-  { key: "web_fetch", name: "Web Fetch", defaultLevel: "auto" },
-  { key: "clipboard_read", name: "Clipboard Read", defaultLevel: "auto" },
-  { key: "clipboard_write", name: "Clipboard Write", defaultLevel: "auto" },
-  { key: "notification_send", name: "Notifications", defaultLevel: "auto" },
+  { key: "fs_read", name: "文件读取", defaultLevel: "auto" },
+  { key: "fs_write", name: "文件写入", defaultLevel: "approval" },
+  { key: "fs_list", name: "文件列表", defaultLevel: "auto" },
+  { key: "fs_search", name: "文件搜索", defaultLevel: "auto" },
+  { key: "shell_exec", name: "终端执行", defaultLevel: "approval" },
+  { key: "web_search", name: "网络搜索", defaultLevel: "auto" },
+  { key: "web_fetch", name: "网络请求", defaultLevel: "auto" },
+  { key: "clipboard_read", name: "剪贴板读取", defaultLevel: "auto" },
+  { key: "clipboard_write", name: "剪贴板写入", defaultLevel: "auto" },
+  { key: "notification_send", name: "通知", defaultLevel: "auto" },
 ];
 
 function AgentConfig() {
@@ -155,20 +155,20 @@ function AgentConfig() {
 
   return (
     <div>
-      <h3 className="text-lg font-semibold mb-4">Agent Configuration</h3>
+      <h3 className="text-lg font-semibold mb-4">智能体配置</h3>
       <div className="space-y-4">
         <div>
-          <label className="text-sm text-text-secondary block mb-1">Workspace Path</label>
+          <label className="text-sm text-text-secondary block mb-1">工作区路径</label>
           <input
             type="text"
             value={workspacePath}
             onChange={(e) => setWorkspacePath(e.target.value)}
             className="w-full bg-bg-elevated border border-border rounded-[var(--radius-sm)] px-3 py-2 text-sm text-text-primary outline-none focus:border-accent/50 font-mono"
           />
-          <p className="text-xs text-text-muted mt-1">Agent tools are sandboxed to this directory</p>
+          <p className="text-xs text-text-muted mt-1">智能体工具仅限在此目录中运行</p>
         </div>
         <div>
-          <label className="text-sm text-text-secondary block mb-2">Tool Permissions</label>
+          <label className="text-sm text-text-secondary block mb-2">工具权限</label>
           <div className="space-y-1">
             {TOOL_PERMISSIONS.map((tool) => (
               <div key={tool.key} className="flex items-center justify-between py-1.5 border-b border-border/30">
@@ -178,9 +178,9 @@ function AgentConfig() {
                   onChange={(e) => setToolLevels((prev) => ({ ...prev, [tool.key]: e.target.value }))}
                   className="bg-bg-elevated border border-border rounded text-xs px-2 py-1 text-text-primary outline-none focus:border-accent/50"
                 >
-                  <option value="auto">Auto</option>
-                  <option value="approval">Approval</option>
-                  <option value="denied">Denied</option>
+                  <option value="auto">自动</option>
+                  <option value="approval">审批</option>
+                  <option value="denied">禁止</option>
                 </select>
               </div>
             ))}
@@ -192,7 +192,7 @@ function AgentConfig() {
             className="flex items-center gap-1.5 px-4 py-2 bg-accent text-text-inverse text-sm rounded-[var(--radius-sm)] hover:bg-accent-hover transition-colors"
           >
             <Save size={14} />
-            {saved ? "Saved!" : "Save Settings"}
+            {saved ? "已保存！" : "保存设置"}
           </button>
         </div>
       </div>
@@ -235,12 +235,12 @@ function GeneralConfig() {
 
   return (
     <div>
-      <h3 className="text-lg font-semibold mb-4">General</h3>
+      <h3 className="text-lg font-semibold mb-4">通用</h3>
       <div className="space-y-4">
         <div className="flex items-center justify-between py-2">
           <div>
-            <span className="text-sm text-text-primary block">Launch at startup</span>
-            <span className="text-xs text-text-muted">Start minimized to menu bar</span>
+            <span className="text-sm text-text-primary block">开机自动启动</span>
+            <span className="text-xs text-text-muted">启动时最小化到菜单栏</span>
           </div>
           <button
             onClick={() => setAutoStart(!autoStart)}
@@ -257,16 +257,16 @@ function GeneralConfig() {
         </div>
         <div className="flex items-center justify-between py-2">
           <div>
-            <span className="text-sm text-text-primary block">Language</span>
-            <span className="text-xs text-text-muted">Interface language</span>
+            <span className="text-sm text-text-primary block">语言</span>
+            <span className="text-xs text-text-muted">界面语言</span>
           </div>
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
             className="bg-bg-elevated border border-border rounded text-sm px-3 py-1.5 text-text-primary outline-none focus:border-accent/50"
           >
-            <option value="zh">Chinese</option>
-            <option value="en">English</option>
+            <option value="zh">中文</option>
+            <option value="en">英文</option>
           </select>
         </div>
 
@@ -276,7 +276,7 @@ function GeneralConfig() {
             className="flex items-center gap-1.5 px-4 py-2 bg-accent text-text-inverse text-sm rounded-[var(--radius-sm)] hover:bg-accent-hover transition-colors"
           >
             <Save size={14} />
-            {saved ? "Saved!" : "Save Settings"}
+            {saved ? "已保存！" : "保存设置"}
           </button>
         </div>
       </div>

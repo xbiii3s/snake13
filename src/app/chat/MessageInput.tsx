@@ -13,7 +13,7 @@ const SUPPORTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/we
 function fileToAttachment(file: File): Promise<Attachment> {
   return new Promise((resolve, reject) => {
     if (file.size > MAX_FILE_SIZE) {
-      reject(new Error(`File "${file.name}" exceeds 10MB limit`));
+      reject(new Error(`文件 "${file.name}" 超过 10MB 限制`));
       return;
     }
     const reader = new FileReader();
@@ -27,7 +27,7 @@ function fileToAttachment(file: File): Promise<Attachment> {
         size: file.size,
       });
     };
-    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.onerror = () => reject(new Error("文件读取失败"));
     reader.readAsDataURL(file);
   });
 }
@@ -156,7 +156,7 @@ export function MessageInput() {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-bg-primary/80 border-2 border-dashed border-accent rounded-[var(--radius-md)] pointer-events-none">
           <div className="text-center">
             <Image size={32} className="text-accent mx-auto mb-2" />
-            <p className="text-sm font-medium text-accent">Drop files here</p>
+            <p className="text-sm font-medium text-accent">拖放文件到这里</p>
           </div>
         </div>
       )}
@@ -195,7 +195,7 @@ export function MessageInput() {
             value={text}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
-            placeholder="Send a message... (Enter to send, Shift+Enter for newline)"
+            placeholder="输入消息...（Enter 发送，Shift+Enter 换行）"
             className="flex-1 bg-transparent text-text-primary text-sm resize-none outline-none placeholder:text-text-muted min-h-[24px] max-h-[200px] leading-relaxed"
             rows={1}
             disabled={isStreaming}
@@ -205,7 +205,7 @@ export function MessageInput() {
             <button
               onClick={cancelStream}
               className="p-2 rounded-[var(--radius-sm)] bg-error/20 text-error hover:bg-error/30 transition-colors"
-              title="Stop generating"
+              title="停止生成"
             >
               <Square size={16} />
             </button>
@@ -214,7 +214,7 @@ export function MessageInput() {
               onClick={handleSend}
               disabled={!text.trim() && attachments.length === 0}
               className="p-2 rounded-[var(--radius-sm)] bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              title="Send message"
+              title="发送消息"
             >
               <Send size={16} />
             </button>
@@ -228,7 +228,7 @@ export function MessageInput() {
             <button
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors px-2 py-1 rounded hover:bg-bg-hover"
-              title="Attach files"
+              title="添加附件"
             >
               <Paperclip size={12} />
             </button>
@@ -279,10 +279,10 @@ export function MessageInput() {
                     ? "text-accent bg-accent/10"
                     : "text-text-muted hover:text-text-secondary hover:bg-bg-hover"
                 }`}
-                title="Extended Thinking"
+                title="深度思考"
               >
                 <Brain size={12} />
-                <span>Thinking</span>
+                <span>思考中</span>
               </button>
             )}
           </div>
