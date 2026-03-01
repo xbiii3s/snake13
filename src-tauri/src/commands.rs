@@ -415,7 +415,7 @@ pub fn folder_create(
 
 #[tauri::command]
 pub fn folder_list(state: State<'_, AppState>) -> AppResult<Vec<crate::data::repo::folder::Folder>> {
-    state.db.with_conn(|conn| crate::data::repo::folder::FolderRepo::list(conn))
+    state.db.with_conn(crate::data::repo::folder::FolderRepo::list)
 }
 
 #[tauri::command]
@@ -472,7 +472,7 @@ pub fn usage_daily(
 
 #[tauri::command]
 pub fn usage_total(state: State<'_, AppState>) -> AppResult<crate::data::repo::usage::UsageSummary> {
-    state.db.with_conn(|conn| crate::data::repo::usage::UsageRepo::total(conn))
+    state.db.with_conn(crate::data::repo::usage::UsageRepo::total)
 }
 
 // ===================== Import/Export Commands =====================
@@ -580,7 +580,7 @@ pub fn template_create(
 /// List all conversation templates
 #[tauri::command]
 pub fn template_list(state: State<'_, AppState>) -> AppResult<Vec<crate::data::repo::template::Template>> {
-    state.db.with_conn(|conn| TemplateRepo::list(conn))
+    state.db.with_conn(TemplateRepo::list)
 }
 
 /// Update an existing template

@@ -275,6 +275,7 @@ struct SseErrorDetail {
 // ===================== Claude API Stream =====================
 
 /// Stream a real response from the Claude API
+#[allow(clippy::too_many_arguments)]
 pub async fn claude_stream(
     channel: tauri::ipc::Channel<StreamEvent>,
     api_key: &str,
