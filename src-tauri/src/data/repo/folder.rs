@@ -33,7 +33,7 @@ pub struct FolderRepo;
 
 impl FolderRepo {
     pub fn create(conn: &Connection, input: &CreateFolder) -> AppResult<Folder> {
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = uuid::Uuid::now_v7().to_string();
         conn.execute(
             "INSERT INTO folders (id, name, parent_id, icon) VALUES (?1, ?2, ?3, ?4)",
             params![id, input.name, input.parent_id, input.icon],

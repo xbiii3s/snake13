@@ -2,36 +2,71 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use regex::Regex;
 use serde_json::{json, Value};
 use tokio::process::Command;
 
 use super::{PermissionLevel, Tool, ToolDefinition, ToolError, ToolOutput, ToolResult};
 
-const BLOCKED_PATTERNS: &[&str] = &[
-    "rm -rf /", "rm -rf ~", "rm -rf /*", "rm -rf ~/*",
-    "sudo ", "su ", "chmod 777", "mkfs", "dd if=",
-    "> /dev/sd", "> /dev/disk",
-    ":(){ :|:", "shutdown", "reboot", "halt", "poweroff",
-    "init 0", "init 6", "launchctl unload", "csrutil disable",
-    "nvram ", "diskutil eraseDisk", "diskutil partitionDisk",
-    "curl | sh", "curl | bash", "wget | sh", "wget | bash",
+/// Blocked command patterns as regex strings.
+/// Uses word boundaries and flexible whitespace to prevent simple bypass tricks
+/// like inserting extra spaces or using single quotes instead of double quotes.
+const BLOCKED_REGEX_PATTERNS: &[&str] = &[
+    r"rm\s+(-\w+\s+)*-r\w*\s+/",     // rm -rf / variants
+    r"rm\s+(-\w+\s+)*-r\w*\s+~",      // rm -rf ~ variants
+    r"\bsudo\b",                        // sudo
+    r"\bsu\s",                          // su (followed by space)
+    r"chmod\s+777",                     // chmod 777
+    r"\bmkfs\b",                        // mkfs
+    r"\bdd\s+if=",                      // dd if=
+    r">\s*/dev/",                       // redirect to /dev/
+    r":\(\)\s*\{",                      // fork bomb
+    r"\bshutdown\b",                    // shutdown
+    r"\breboot\b",                      // reboot
+    r"\bhalt\b",                        // halt
+    r"\bpoweroff\b",                    // poweroff
+    r"\binit\s+[06]\b",                // init 0/6
+    r"\blaunchctl\s+unload\b",         // launchctl unload
+    r"\bcsrutil\s+disable\b",          // csrutil disable
+    r"\bnvram\b",                       // nvram
+    r"diskutil\s+(erase|partition)",    // diskutil eraseDisk/partitionDisk
+    r"curl\s+.*\|\s*(sh|bash)",         // curl | sh/bash
+    r"wget\s+.*\|\s*(sh|bash)",         // wget | sh/bash
 ];
 
+/// Shell command execution tool with security blocklist
 pub struct ShellExec {
     working_dir: PathBuf,
+    blocked_patterns: Vec<Regex>,
 }
 
 impl ShellExec {
+    /// Create a new ShellExec tool.
+    ///
+    /// Compiles blocked command regex patterns at initialization time
+    /// so they don't need to be recompiled on every invocation.
     pub fn new(working_dir: PathBuf) -> Self {
-        Self { working_dir }
+        let blocked_patterns = BLOCKED_REGEX_PATTERNS
+            .iter()
+            .filter_map(|p| {
+                regex::RegexBuilder::new(p)
+                    .case_insensitive(true)
+                    .build()
+                    .ok()
+            })
+            .collect();
+        Self {
+            working_dir,
+            blocked_patterns,
+        }
     }
 
-    fn check_blocklist(command: &str) -> ToolResult<()> {
-        let lower = command.to_lowercase();
-        for pattern in BLOCKED_PATTERNS {
-            if lower.contains(&pattern.to_lowercase()) {
+    fn check_blocklist(&self, command: &str) -> ToolResult<()> {
+        for pattern in &self.blocked_patterns {
+            if pattern.is_match(command) {
                 return Err(ToolError::CommandBlocked(format!(
-                    "Command contains blocked pattern: '{pattern}'"
+                    "Command matches blocked pattern: '{}'",
+                    pattern.as_str()
                 )));
             }
         }
@@ -68,7 +103,7 @@ impl Tool for ShellExec {
 
         let timeout_secs = input["timeout_secs"].as_u64().unwrap_or(30).min(300);
 
-        Self::check_blocklist(command)?;
+        self.check_blocklist(command)?;
 
         let cwd = if let Some(wd) = input["working_dir"].as_str() {
             let wd_path = PathBuf::from(wd);
@@ -102,20 +137,32 @@ impl Tool for ShellExec {
                 let exit_code = output.status.code().unwrap_or(-1);
 
                 let mut content = String::new();
-                if !stdout.is_empty() { content.push_str(&stdout); }
+                if !stdout.is_empty() {
+                    content.push_str(&stdout);
+                }
                 if !stderr.is_empty() {
-                    if !content.is_empty() { content.push_str("\n--- stderr ---\n"); }
+                    if !content.is_empty() {
+                        content.push_str("\n--- stderr ---\n");
+                    }
                     content.push_str(&stderr);
                 }
-                if content.is_empty() { content = "(no output)".to_string(); }
+                if content.is_empty() {
+                    content = "(no output)".to_string();
+                }
 
                 Ok(ToolOutput {
                     content,
-                    metadata: Some(json!({ "exit_code": exit_code, "command": command, "working_dir": cwd.display().to_string() })),
+                    metadata: Some(json!({
+                        "exit_code": exit_code,
+                        "command": command,
+                        "working_dir": cwd.display().to_string()
+                    })),
                     is_error: exit_code != 0,
                 })
             }
-            Ok(Err(e)) => Err(ToolError::ExecutionFailed(format!("Failed to execute command: {e}"))),
+            Ok(Err(e)) => Err(ToolError::ExecutionFailed(format!(
+                "Failed to execute command: {e}"
+            ))),
             Err(_) => Err(ToolError::Timeout),
         }
     }

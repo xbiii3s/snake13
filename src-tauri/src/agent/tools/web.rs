@@ -12,13 +12,17 @@ pub struct WebSearch {
 }
 
 impl WebSearch {
+    /// Create a new WebSearch tool with a pre-configured HTTP client.
+    ///
+    /// # Panics
+    /// This should never panic as reqwest's default builder configuration is always valid.
     pub fn new() -> Self {
         Self {
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(30))
                 .user_agent("ClaudeDesktopPro/0.1")
                 .build()
-                .expect("Failed to build HTTP client"),
+                .unwrap_or_else(|_| reqwest::Client::new()),
         }
     }
 }
@@ -116,13 +120,14 @@ pub struct WebFetch {
 }
 
 impl WebFetch {
+    /// Create a new WebFetch tool with a pre-configured HTTP client.
     pub fn new() -> Self {
         Self {
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(30))
                 .user_agent("ClaudeDesktopPro/0.1")
                 .build()
-                .expect("Failed to build HTTP client"),
+                .unwrap_or_else(|_| reqwest::Client::new()),
         }
     }
 }

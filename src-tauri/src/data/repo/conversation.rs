@@ -47,7 +47,7 @@ pub struct ConversationRepo;
 impl ConversationRepo {
     /// Create a new conversation
     pub fn create(conn: &Connection, input: &CreateConversation) -> AppResult<Conversation> {
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = uuid::Uuid::now_v7().to_string();
         let title = input.title.clone().unwrap_or_else(|| "New Chat".to_string());
         let model_id = input
             .model_id

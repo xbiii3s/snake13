@@ -49,7 +49,7 @@ pub struct TemplateRepo;
 impl TemplateRepo {
     /// Create a new template
     pub fn create(conn: &Connection, input: &CreateTemplate) -> AppResult<Template> {
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = uuid::Uuid::now_v7().to_string();
         conn.execute(
             "INSERT INTO templates (id, name, description, system_prompt, model_id, enable_thinking, agent_mode, icon) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             rusqlite::params![

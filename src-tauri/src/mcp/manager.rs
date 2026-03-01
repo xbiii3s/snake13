@@ -259,7 +259,34 @@ impl McpManager {
         tools
     }
 
-    /// Import server configs from Claude Desktop format
+    /// Allowed MCP server commands (safe executables).
+    /// Commands not in this list will be rejected during config import.
+    const ALLOWED_MCP_COMMANDS: &'static [&'static str] = &[
+        "npx", "node", "python", "python3", "uvx", "deno", "bun",
+        "docker", "podman", "cargo", "go",
+    ];
+
+    /// Validate that an MCP server command is allowed
+    fn validate_command(command: &str) -> AppResult<()> {
+        let base_command = std::path::Path::new(command)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(command);
+
+        if !Self::ALLOWED_MCP_COMMANDS.contains(&base_command) {
+            return Err(AppError::Validation(format!(
+                "MCP server command '{}' is not in the allowed list. Allowed: {:?}",
+                command,
+                Self::ALLOWED_MCP_COMMANDS
+            )));
+        }
+        Ok(())
+    }
+
+    /// Import server configs from Claude Desktop format.
+    ///
+    /// Commands are validated against a whitelist to prevent execution of
+    /// arbitrary or dangerous executables.
     pub fn parse_claude_config(json_str: &str) -> AppResult<Vec<McpServerConfig>> {
         let value: Value = serde_json::from_str(json_str)
             .map_err(|e| AppError::Internal(format!("Invalid JSON: {}", e)))?;
@@ -274,6 +301,9 @@ impl McpManager {
                 .as_str()
                 .unwrap_or("npx")
                 .to_string();
+
+            // Validate command against whitelist
+            Self::validate_command(&command)?;
 
             let args: Vec<String> = config["args"]
                 .as_array()
@@ -296,7 +326,7 @@ impl McpManager {
                 .unwrap_or_default();
 
             configs.push(McpServerConfig {
-                id: uuid::Uuid::new_v4().to_string(),
+                id: uuid::Uuid::now_v7().to_string(),
                 name: name.clone(),
                 command,
                 args,

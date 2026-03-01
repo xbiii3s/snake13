@@ -52,7 +52,7 @@ pub struct MessageRepo;
 impl MessageRepo {
     /// Create a new message
     pub fn create(conn: &Connection, input: &CreateMessage) -> AppResult<Message> {
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = uuid::Uuid::now_v7().to_string();
 
         conn.execute(
             "INSERT INTO messages (id, conversation_id, parent_id, role, content, model_used,

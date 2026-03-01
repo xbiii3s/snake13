@@ -27,6 +27,17 @@ pub fn conversation_create(
     state: State<'_, AppState>,
     input: CreateConversation,
 ) -> AppResult<crate::data::repo::conversation::Conversation> {
+    // Validate input lengths
+    if let Some(ref title) = input.title {
+        if title.len() > 500 {
+            return Err(crate::error::AppError::Validation("Title must be 500 characters or less".into()));
+        }
+    }
+    if let Some(ref prompt) = input.system_prompt {
+        if prompt.len() > 50_000 {
+            return Err(crate::error::AppError::Validation("System prompt must be 50000 characters or less".into()));
+        }
+    }
     state.db.with_conn(|conn| ConversationRepo::create(conn, &input))
 }
 
@@ -71,6 +82,9 @@ pub fn message_create(
     state: State<'_, AppState>,
     input: CreateMessage,
 ) -> AppResult<crate::data::repo::message::Message> {
+    if input.content.len() > 500_000 {
+        return Err(crate::error::AppError::Validation("Message content must be 500000 characters or less".into()));
+    }
     state.db.with_conn(|conn| MessageRepo::create(conn, &input))
 }
 
@@ -167,7 +181,10 @@ pub async fn chat_send(
         .unwrap_or(false);
 
     if has_api_key {
-        let api_key = api_key.unwrap();
+        // Safety: has_api_key is true only when api_key is Some with non-empty content
+        let api_key = api_key.ok_or_else(|| crate::error::AppError::Internal(
+            "API key unexpectedly missing".to_string()
+        ))?;
 
         // Build messages history from database
         let db_messages = state
@@ -390,6 +407,9 @@ pub fn folder_create(
     state: State<'_, AppState>,
     input: crate::data::repo::folder::CreateFolder,
 ) -> AppResult<crate::data::repo::folder::Folder> {
+    if input.name.is_empty() || input.name.len() > 200 {
+        return Err(crate::error::AppError::Validation("Folder name must be 1-200 characters".into()));
+    }
     state.db.with_conn(|conn| crate::data::repo::folder::FolderRepo::create(conn, &input))
 }
 

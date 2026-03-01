@@ -158,7 +158,7 @@ impl PermissionManager {
         description: &str,
         input: &Value,
     ) -> PermissionRequest {
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = uuid::Uuid::now_v7().to_string();
         let input_summary = summarise_input(input);
         PermissionRequest {
             id,

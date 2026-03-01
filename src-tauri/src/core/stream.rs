@@ -2,29 +2,42 @@ use futures::StreamExt;
 use reqwest::header;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
-/// Cancellation flag for the active stream.
+/// Generation-based cancellation for concurrent stream safety.
 ///
-/// Uses an atomic generation counter to avoid race conditions:
-/// - `reset_cancel()` increments the generation and returns it
-/// - `request_cancel()` sets generation to 0 (sentinel for "cancelled")
-/// - `is_cancelled(gen)` checks if the current generation differs from the stream's gen
-///
-/// This ensures cancellation only affects the current active stream.
-static CANCEL_GENERATION: AtomicBool = AtomicBool::new(false);
+/// Each new stream increments the generation counter and captures its value.
+/// `request_cancel()` stores a sentinel (0) that is different from any active
+/// generation, causing `is_cancelled(gen)` to return true for whichever stream
+/// is currently running. This avoids the race condition of a single AtomicBool
+/// where cancelling one stream could affect a newly started stream.
+static STREAM_GENERATION: AtomicU64 = AtomicU64::new(1);
 
+/// Signal cancellation for the currently active stream.
 pub fn request_cancel() {
-    CANCEL_GENERATION.store(true, Ordering::SeqCst);
+    STREAM_GENERATION.store(0, Ordering::SeqCst);
 }
 
-fn is_cancelled() -> bool {
-    CANCEL_GENERATION.load(Ordering::SeqCst)
+/// Start a new stream generation. Returns the generation ID for this stream.
+///
+/// `fetch_add` returns the old value; we return old+1 which is the new stored value.
+/// This ensures `is_cancelled(gen)` comparing `load() != gen` works correctly.
+fn new_generation() -> u64 {
+    let old = STREAM_GENERATION.fetch_add(1, Ordering::SeqCst);
+    let gen = old.wrapping_add(1);
+    // If the new value is 0 (the cancel sentinel), skip it
+    if gen == 0 {
+        let old2 = STREAM_GENERATION.fetch_add(1, Ordering::SeqCst);
+        old2.wrapping_add(1)
+    } else {
+        gen
+    }
 }
 
-fn reset_cancel() {
-    CANCEL_GENERATION.store(false, Ordering::SeqCst);
+/// Check if the given stream generation has been cancelled.
+fn is_cancelled(gen: u64) -> bool {
+    STREAM_GENERATION.load(Ordering::SeqCst) != gen
 }
 
 /// Events emitted during streaming, sent to frontend via Tauri Channel
@@ -82,8 +95,8 @@ pub async fn mock_stream(
     _user_message: &str,
     enable_thinking: bool,
 ) -> crate::error::AppResult<()> {
-    reset_cancel();
-    let message_id = uuid::Uuid::new_v4().to_string();
+    let gen = new_generation();
+    let message_id = uuid::Uuid::now_v7().to_string();
 
     // 1. Message start
     channel
@@ -107,7 +120,7 @@ pub async fn mock_stream(
             Based on my analysis, I can now provide a detailed answer.";
 
         for chunk in thinking_text.chars().collect::<Vec<_>>().chunks(5) {
-            if is_cancelled() {
+            if is_cancelled(gen) {
                 return Err(crate::error::AppError::Cancelled);
             }
             let text: String = chunk.iter().collect();
@@ -131,7 +144,7 @@ pub async fn mock_stream(
 
     // Stream token by token (in chunks of ~3 chars for realism)
     for chunk in response.chars().collect::<Vec<_>>().chunks(3) {
-        if is_cancelled() {
+        if is_cancelled(gen) {
             return Err(crate::error::AppError::Cancelled);
         }
         let text: String = chunk.iter().collect();
@@ -273,7 +286,7 @@ pub async fn claude_stream(
     max_tokens: Option<u32>,
     proxy_url: Option<&str>,
 ) -> crate::error::AppResult<()> {
-    reset_cancel();
+    let gen = new_generation();
 
     let max_tokens = max_tokens.unwrap_or(8192);
 
@@ -352,7 +365,7 @@ pub async fn claude_stream(
     };
 
     while let Some(chunk_result) = stream.next().await {
-        if is_cancelled() {
+        if is_cancelled(gen) {
             return Err(crate::error::AppError::Cancelled);
         }
 
@@ -543,13 +556,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_cancel_flag() {
-        reset_cancel();
-        assert!(!is_cancelled());
+    fn test_cancel_generation() {
+        let gen = new_generation();
+        assert!(!is_cancelled(gen));
         request_cancel();
-        assert!(is_cancelled());
-        reset_cancel();
-        assert!(!is_cancelled());
+        assert!(is_cancelled(gen));
+        // New generation should not be cancelled
+        let gen2 = new_generation();
+        assert!(!is_cancelled(gen2));
     }
 
     #[test]

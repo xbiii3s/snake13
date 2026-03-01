@@ -34,15 +34,15 @@ pub fn run() {
             let app_data_dir = app
                 .path()
                 .app_data_dir()
-                .expect("Failed to get app data directory");
+                .map_err(|e| format!("Failed to get app data directory: {e}"))?;
             let db_path = app_data_dir.join("claude-desktop-pro.db");
 
             log::info!("Database path: {}", db_path.display());
 
             let db = data::Database::new(db_path)
-                .expect("Failed to open database");
+                .map_err(|e| format!("Failed to open database: {e}"))?;
             db.run_migrations()
-                .expect("Failed to run database migrations");
+                .map_err(|e| format!("Failed to run database migrations: {e}"))?;
 
             let mcp_manager = mcp::manager::McpManager::new();
 
@@ -142,5 +142,9 @@ pub fn run() {
             commands::get_autostart,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|e| {
+            log::error!("Fatal: Tauri application failed to start: {e}");
+            eprintln!("Fatal: Tauri application failed to start: {e}");
+            std::process::exit(1);
+        });
 }
