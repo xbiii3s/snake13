@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serde_json::{json, Value};
-use std::process::Command;
+use tokio::process::Command;
 
 use super::{PermissionLevel, Tool, ToolDefinition, ToolError, ToolOutput, ToolResult};
 
@@ -27,6 +27,7 @@ impl Tool for ClipboardRead {
     async fn execute(&self, _input: Value) -> ToolResult<ToolOutput> {
         let output = Command::new("pbpaste")
             .output()
+            .await
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to run pbpaste: {e}")))?;
 
         if !output.status.success() {
@@ -37,7 +38,8 @@ impl Tool for ClipboardRead {
         }
 
         let content = String::from_utf8_lossy(&output.stdout).into_owned();
-        Ok(ToolOutput::with_metadata(content.clone(), json!({ "length": content.len() })))
+        let len = content.len();
+        Ok(ToolOutput::with_metadata(content, json!({ "length": len })))
     }
 }
 
@@ -72,7 +74,7 @@ impl Tool for ClipboardWrite {
             .as_str()
             .ok_or_else(|| ToolError::InvalidInput("'content' must be a string".into()))?;
 
-        use std::io::Write;
+        use tokio::io::AsyncWriteExt;
         let mut child = Command::new("pbcopy")
             .stdin(std::process::Stdio::piped())
             .spawn()
@@ -80,10 +82,12 @@ impl Tool for ClipboardWrite {
 
         if let Some(mut stdin) = child.stdin.take() {
             stdin.write_all(content.as_bytes())
+                .await
                 .map_err(|e| ToolError::ExecutionFailed(format!("Failed to write to pbcopy: {e}")))?;
         }
 
         let status = child.wait()
+            .await
             .map_err(|e| ToolError::ExecutionFailed(format!("pbcopy wait failed: {e}")))?;
 
         if !status.success() {
@@ -155,6 +159,7 @@ impl Tool for NotificationSend {
             .arg("-e")
             .arg(&script)
             .output()
+            .await
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to run osascript: {e}")))?;
 
         if !output.status.success() {

@@ -304,9 +304,27 @@ struct SseErrorDetail {
 
 // ===================== Claude API Stream =====================
 
+/// Build a reusable HTTP client with optional proxy
+pub fn build_http_client(proxy_url: Option<&str>) -> crate::error::AppResult<reqwest::Client> {
+    let mut builder = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .connect_timeout(std::time::Duration::from_secs(30));
+    if let Some(proxy) = proxy_url {
+        if !proxy.is_empty() {
+            let reqwest_proxy = reqwest::Proxy::all(proxy)
+                .map_err(|e| crate::error::AppError::Internal(format!("Invalid proxy URL: {}", e)))?;
+            builder = builder.proxy(reqwest_proxy);
+        }
+    }
+    builder
+        .build()
+        .map_err(|e| crate::error::AppError::Internal(format!("Failed to build HTTP client: {}", e)))
+}
+
 /// Stream a real response from the Claude API
 #[allow(clippy::too_many_arguments)]
 pub async fn claude_stream(
+    client: &reqwest::Client,
     channel: tauri::ipc::Channel<StreamEvent>,
     api_key: &str,
     model_id: &str,
@@ -315,7 +333,6 @@ pub async fn claude_stream(
     enable_thinking: bool,
     tools: Option<Value>,
     max_tokens: Option<u32>,
-    proxy_url: Option<&str>,
 ) -> crate::error::AppResult<StreamResult> {
     let gen = new_generation();
 
@@ -338,19 +355,6 @@ pub async fn claude_stream(
         },
         tools,
     };
-
-    // Build reqwest client (with optional proxy)
-    let mut client_builder = reqwest::Client::builder();
-    if let Some(proxy) = proxy_url {
-        if !proxy.is_empty() {
-            let reqwest_proxy = reqwest::Proxy::all(proxy)
-                .map_err(|e| crate::error::AppError::Internal(format!("Invalid proxy URL: {}", e)))?;
-            client_builder = client_builder.proxy(reqwest_proxy);
-        }
-    }
-    let client = client_builder
-        .build()
-        .map_err(|e| crate::error::AppError::Internal(format!("Failed to build HTTP client: {}", e)))?;
 
     // Send request
     let response = client
@@ -383,7 +387,8 @@ pub async fn claude_stream(
     let mut stream = response.bytes_stream();
     let mut buffer = String::new();
     let mut current_event_type = String::new();
-    let mut _message_id = String::new();
+    #[allow(unused_assignments)]
+    let mut message_id = String::new();
     let mut input_tokens: u64 = 0;
     let mut output_tokens: u64 = 0;
     let mut thinking_start_time: Option<Instant> = None;
@@ -410,7 +415,7 @@ pub async fn claude_stream(
         // Process complete lines from the buffer
         while let Some(newline_pos) = buffer.find('\n') {
             let line = buffer[..newline_pos].trim_end_matches('\r').to_string();
-            buffer = buffer[newline_pos + 1..].to_string();
+            buffer.drain(..=newline_pos);
 
             if line.is_empty() {
                 // Empty line = end of SSE event, process the accumulated event
@@ -426,12 +431,12 @@ pub async fn claude_stream(
                 match current_event_type.as_str() {
                     "message_start" => {
                         if let Ok(msg_start) = serde_json::from_str::<SseMessageStart>(data) {
-                            _message_id = msg_start.message.id.clone();
+                            message_id = msg_start.message.id.clone();
                             if let Some(usage) = msg_start.message.usage {
                                 input_tokens = usage.input_tokens.unwrap_or(0);
                             }
                             send(StreamEvent::MessageStart {
-                                message_id: _message_id.clone(),
+                                message_id: message_id.clone(),
                             })?;
                         }
                     }

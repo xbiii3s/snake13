@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import type { Message } from "@/types/message";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { Copy, Check, ChevronDown, ChevronRight, Brain, User, Bot, GitBranch } from "lucide-react";
@@ -9,7 +9,7 @@ interface Props {
   message: Message;
 }
 
-export function MessageBubble({ message }: Props) {
+export const MessageBubble = memo(function MessageBubble({ message }: Props) {
   const [copied, setCopied] = useState(false);
   const [thinkingOpen, setThinkingOpen] = useState(false);
 
@@ -113,4 +113,4 @@ export function MessageBubble({ message }: Props) {
       )}
     </div>
   );
-}
+});

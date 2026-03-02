@@ -88,10 +88,14 @@ impl StdioTransport {
             AppError::Internal("Failed to send message to MCP server".to_string())
         })?;
 
-        // Wait for response
-        let response_str = self.receiver.recv().await.ok_or_else(|| {
-            AppError::Internal("MCP server closed connection".to_string())
-        })?;
+        // Wait for response with timeout
+        let response_str = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            self.receiver.recv(),
+        )
+        .await
+        .map_err(|_| AppError::Internal("MCP server response timeout (30s)".to_string()))?
+        .ok_or_else(|| AppError::Internal("MCP server closed connection".to_string()))?;
 
         let response: JsonRpcResponse = serde_json::from_str(&response_str)
             .map_err(|e| AppError::Internal(format!("Failed to parse MCP response: {}", e)))?;

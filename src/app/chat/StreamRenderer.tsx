@@ -5,7 +5,10 @@ import { useState } from "react";
 
 export function StreamRenderer() {
   const isStreaming = useChatStore((s) => s.isStreaming);
-  const streaming = useChatStore((s) => s.streaming);
+  const thinkingText = useChatStore((s) => s.streaming.thinkingText);
+  const contentText = useChatStore((s) => s.streaming.contentText);
+  const isThinking = useChatStore((s) => s.streaming.isThinking);
+  const thinkingDuration = useChatStore((s) => s.streaming.thinkingDuration);
   const [thinkingOpen, setThinkingOpen] = useState(true);
 
   if (!isStreaming) return null;
@@ -19,7 +22,7 @@ export function StreamRenderer() {
 
       <div className="flex flex-col max-w-[80%] min-w-0">
         {/* Thinking section */}
-        {(streaming.isThinking || streaming.thinkingText) && (
+        {(isThinking || thinkingText) && (
           <div className="mb-2">
             <button
               onClick={() => setThinkingOpen(!thinkingOpen)}
@@ -28,31 +31,31 @@ export function StreamRenderer() {
               <Brain size={12} />
               {thinkingOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               <span>
-                {streaming.isThinking ? "思考中..." : `思考了 ${(streaming.thinkingDuration / 1000).toFixed(1)} 秒`}
+                {isThinking ? "思考中..." : `思考了 ${(thinkingDuration / 1000).toFixed(1)} 秒`}
               </span>
-              {streaming.isThinking && (
+              {isThinking && (
                 <Loader size={10} className="animate-spin" />
               )}
             </button>
-            {thinkingOpen && streaming.thinkingText && (
+            {thinkingOpen && thinkingText && (
               <div className="bg-bg-secondary/50 border border-border rounded-[var(--radius-sm)] p-3 text-xs text-text-muted italic leading-relaxed">
-                {streaming.thinkingText}
-                {streaming.isThinking && <span className="animate-pulse ml-0.5">|</span>}
+                {thinkingText}
+                {isThinking && <span className="animate-pulse ml-0.5">|</span>}
               </div>
             )}
           </div>
         )}
 
         {/* Content section */}
-        {streaming.contentText && (
+        {contentText && (
           <div>
-            <MarkdownRenderer content={streaming.contentText} />
+            <MarkdownRenderer content={contentText} />
             <span className="inline-block w-2 h-4 bg-accent/60 animate-pulse ml-0.5 align-text-bottom" />
           </div>
         )}
 
         {/* Loading indicator when no content yet */}
-        {!streaming.contentText && !streaming.isThinking && !streaming.thinkingText && (
+        {!contentText && !isThinking && !thinkingText && (
           <div className="flex items-center gap-2 text-text-muted text-sm py-2">
             <Loader size={14} className="animate-spin" />
             <span>生成中...</span>

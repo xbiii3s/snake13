@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, memo } from "react";
 import type { Message } from "@/types/message";
 import { MessageBubble } from "./MessageBubble";
 
@@ -11,7 +11,7 @@ interface Props {
  * Wrapper around MessageBubble that reports its measured height
  * for virtual scrolling calculations.
  */
-export function VirtualMessageBubble({ message, onMeasure }: Props) {
+export const VirtualMessageBubble = memo(function VirtualMessageBubble({ message, onMeasure }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,4 +33,4 @@ export function VirtualMessageBubble({ message, onMeasure }: Props) {
       <MessageBubble message={message} />
     </div>
   );
-}
+});

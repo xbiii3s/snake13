@@ -6,6 +6,21 @@ import { Send, Square, ChevronDown, Brain, Paperclip, X, Image, FileText } from 
 import { AgentToggle } from "@/app/agent/AgentToggle";
 import type { Attachment } from "@/types/message";
 
+/** Estimate token count for mixed CJK/Latin text */
+function estimateTokens(text: string): number {
+  let tokens = 0;
+  for (const char of text) {
+    // CJK characters (Chinese, Japanese, Korean) ≈ 1-2 tokens each
+    if (/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(char)) {
+      tokens += 1.5;
+    // Latin characters ≈ 0.25 tokens each (4 chars per token)
+    } else {
+      tokens += 0.25;
+    }
+  }
+  return Math.ceil(tokens);
+}
+
 /** Max file size: 10MB */
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const SUPPORTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -296,7 +311,7 @@ export function MessageInput() {
           </div>
 
           <div className="text-xs text-text-muted">
-            {text.length > 0 && <span>~{Math.ceil(text.length / 4)} tokens</span>}
+            {text.length > 0 && <span>~{estimateTokens(text)} tokens</span>}
           </div>
         </div>
       </div>

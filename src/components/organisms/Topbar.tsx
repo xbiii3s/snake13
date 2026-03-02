@@ -5,8 +5,11 @@ import { MODELS } from "@/types/model";
 import { Wifi, Settings, PanelRightOpen, PanelRightClose, Bot } from "lucide-react";
 
 export function Topbar() {
-  const activeId = useChatStore((s) => s.activeConversationId);
-  const conversations = useChatStore((s) => s.conversations);
+  const activeConv = useChatStore((s) =>
+    s.activeConversationId
+      ? s.conversations.find((c) => c.id === s.activeConversationId) ?? null
+      : null
+  );
   const lastUsage = useChatStore((s) => s.lastUsage);
 
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
@@ -16,7 +19,6 @@ export function Topbar() {
   const agentEnabled = useAgentStore((s) => s.enabled);
   const agentTools = useAgentStore((s) => s.tools);
 
-  const activeConv = conversations.find((c) => c.id === activeId);
   const model = MODELS.find((m) => m.id === activeConv?.model_id);
 
   return (

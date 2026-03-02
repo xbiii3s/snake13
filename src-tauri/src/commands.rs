@@ -14,6 +14,35 @@ use crate::error::AppResult;
 use crate::mcp::manager::{McpServerConfig, McpServerInfo};
 use crate::AppState;
 
+/// Build a proxy URL with optional authentication credentials
+fn build_proxy_url(scheme: &str, host: &str, port: &str, username: Option<&str>, password: Option<&str>) -> String {
+    match (username, password) {
+        (Some(u), Some(p)) if !u.is_empty() => {
+            format!("{}://{}:{}@{}:{}", scheme, u, p, host, port)
+        }
+        (Some(u), _) if !u.is_empty() => {
+            format!("{}://{}@{}:{}", scheme, u, host, port)
+        }
+        _ => format!("{}://{}:{}", scheme, host, port),
+    }
+}
+
+/// Allowed settings keys to prevent arbitrary key injection from frontend
+const ALLOWED_SETTINGS_KEYS: &[&str] = &[
+    "font_size", "show_tokens", "theme", "language",
+    "proxy_type", "proxy_host", "proxy_port", "proxy_username", "proxy_password", "proxy_url",
+    "default_model", "auto_start", "send_shortcut",
+    "agent_clipboard_read", "agent_clipboard_write", "agent_notification_send",
+    "agent_shell_exec", "agent_fs_read", "agent_fs_write", "agent_fs_search",
+    "agent_web_fetch", "agent_web_search", "agent_code_interpret",
+];
+
+/// Known Claude model identifiers
+const KNOWN_MODELS: &[&str] = &[
+    "claude-opus-4-6", "claude-sonnet-4-5", "claude-haiku-4-5",
+    "claude-sonnet-4-0", "claude-haiku-3-5",
+];
+
 /// Temporary greeting command for testing IPC
 #[tauri::command]
 pub fn greet(name: &str) -> String {
@@ -130,25 +159,35 @@ pub async fn chat_send(
     enable_thinking: bool,
     on_event: tauri::ipc::Channel<StreamEvent>,
 ) -> AppResult<crate::data::repo::message::Message> {
+    // Validate model_id
+    if !KNOWN_MODELS.contains(&model_id.as_str()) {
+        return Err(crate::error::AppError::Validation(format!(
+            "Unknown model: '{}'. Allowed: {:?}", model_id, KNOWN_MODELS
+        )));
+    }
+
     // 1. Check if API key is configured (from macOS Keychain)
     let api_key = crate::data::secure::SecureStore::get_api_key()?;
 
-    // Construct proxy URL from separate settings
-    let proxy_url = {
-        let proxy_type = state.db.with_conn(|conn| SettingsRepo::get(conn, "proxy_type"))?;
-        let proxy_host = state.db.with_conn(|conn| SettingsRepo::get(conn, "proxy_host"))?;
-        let proxy_port = state.db.with_conn(|conn| SettingsRepo::get(conn, "proxy_port"))?;
+    // Construct proxy URL from separate settings (single DB connection)
+    let proxy_url = state.db.with_conn(|conn| {
+        let proxy_type = SettingsRepo::get(conn, "proxy_type")?;
+        let proxy_host = SettingsRepo::get(conn, "proxy_host")?;
+        let proxy_port = SettingsRepo::get(conn, "proxy_port")?;
+        let proxy_user = SettingsRepo::get(conn, "proxy_username")?;
+        let proxy_pass = SettingsRepo::get(conn, "proxy_password")?;
 
-        match (proxy_type.as_deref(), proxy_host, proxy_port) {
+        let url = match (proxy_type.as_deref(), proxy_host, proxy_port) {
             (Some("http"), Some(h), Some(p)) if !h.is_empty() && !p.is_empty() => {
-                Some(format!("http://{}:{}", h, p))
+                Some(build_proxy_url("http", &h, &p, proxy_user.as_deref(), proxy_pass.as_deref()))
             }
             (Some("socks5"), Some(h), Some(p)) if !h.is_empty() && !p.is_empty() => {
-                Some(format!("socks5://{}:{}", h, p))
+                Some(build_proxy_url("socks5", &h, &p, proxy_user.as_deref(), proxy_pass.as_deref()))
             }
             _ => None,
-        }
-    };
+        };
+        Ok(url)
+    })?;
 
     // 2. Get conversation details (for system prompt)
     let conversation = state.db.with_conn(|conn| ConversationRepo::get_by_id(conn, &conversation_id))?;
@@ -203,8 +242,12 @@ pub async fn chat_send(
             });
         }
 
+        // Build HTTP client with proxy
+        let client = stream::build_http_client(proxy_url.as_deref())?;
+
         // Stream real API response
         let result = stream::claude_stream(
+            &client,
             on_event.clone(),
             &api_key,
             &model_id,
@@ -213,7 +256,6 @@ pub async fn chat_send(
             enable_thinking,
             None, // tools
             None, // max_tokens (defaults to 8192)
-            proxy_url.as_deref(),
         )
         .await?;
 
@@ -284,6 +326,16 @@ pub fn settings_get(state: State<'_, AppState>, key: String) -> AppResult<Option
 
 #[tauri::command]
 pub fn settings_set(state: State<'_, AppState>, key: String, value: String) -> AppResult<()> {
+    if !ALLOWED_SETTINGS_KEYS.contains(&key.as_str()) {
+        return Err(crate::error::AppError::Validation(format!(
+            "Setting key '{}' is not allowed", key
+        )));
+    }
+    if value.len() > 10_000 {
+        return Err(crate::error::AppError::Validation(
+            "Setting value must be 10000 characters or less".to_string()
+        ));
+    }
     state
         .db
         .with_conn(|conn| SettingsRepo::set(conn, &key, &value))
@@ -525,40 +577,55 @@ pub fn import_conversation(
         .to_string();
 
     state.db.with_conn(|conn| {
-        // Create new conversation
-        let conv = ConversationRepo::create(conn, &CreateConversation {
-            title: Some(title),
-            model_id: Some(model_id),
-            system_prompt: None,
-            folder_id: None,
-            agent_mode: None,
-        })?;
+        conn.execute_batch("BEGIN")?;
 
-        // Import messages
-        if let Some(messages) = parsed["messages"].as_array() {
-            for msg in messages {
-                let role = msg["role"].as_str().unwrap_or("user").to_string();
-                let content = msg["content"].as_str().unwrap_or("").to_string();
-                if content.is_empty() { continue; }
+        let result = (|| -> AppResult<_> {
+            // Create new conversation
+            let conv = ConversationRepo::create(conn, &CreateConversation {
+                title: Some(title),
+                model_id: Some(model_id),
+                system_prompt: None,
+                folder_id: None,
+                agent_mode: None,
+            })?;
 
-                MessageRepo::create(conn, &crate::data::repo::message::CreateMessage {
-                    conversation_id: conv.id.clone(),
-                    parent_id: None,
-                    role,
-                    content,
-                    model_used: msg["model_used"].as_str().map(|s| s.to_string()),
-                    tokens_in: msg["tokens_in"].as_i64(),
-                    tokens_out: msg["tokens_out"].as_i64(),
-                    cost: msg["cost"].as_f64(),
-                    thinking_content: msg["thinking_content"].as_str().map(|s| s.to_string()),
-                    thinking_duration_ms: msg["thinking_duration_ms"].as_i64(),
-                    attachments: None,
-                    tool_calls: None,
-                })?;
+            // Import messages
+            if let Some(messages) = parsed["messages"].as_array() {
+                for msg in messages {
+                    let role = msg["role"].as_str().unwrap_or("user").to_string();
+                    let content = msg["content"].as_str().unwrap_or("").to_string();
+                    if content.is_empty() { continue; }
+
+                    MessageRepo::create(conn, &crate::data::repo::message::CreateMessage {
+                        conversation_id: conv.id.clone(),
+                        parent_id: None,
+                        role,
+                        content,
+                        model_used: msg["model_used"].as_str().map(|s| s.to_string()),
+                        tokens_in: msg["tokens_in"].as_i64(),
+                        tokens_out: msg["tokens_out"].as_i64(),
+                        cost: msg["cost"].as_f64(),
+                        thinking_content: msg["thinking_content"].as_str().map(|s| s.to_string()),
+                        thinking_duration_ms: msg["thinking_duration_ms"].as_i64(),
+                        attachments: None,
+                        tool_calls: None,
+                    })?;
+                }
+            }
+
+            Ok(conv)
+        })();
+
+        match result {
+            Ok(conv) => {
+                conn.execute_batch("COMMIT")?;
+                Ok(conv)
+            }
+            Err(e) => {
+                let _ = conn.execute_batch("ROLLBACK");
+                Err(e)
             }
         }
-
-        Ok(conv)
     })
 }
 
@@ -605,42 +672,64 @@ pub fn conversation_fork(
     from_message_id: String,
 ) -> AppResult<crate::data::repo::conversation::Conversation> {
     state.db.with_conn(|conn| {
-        // Get the original conversation
-        let orig = ConversationRepo::get_by_id(conn, &conversation_id)?;
+        conn.execute_batch("BEGIN")?;
 
-        // Create a new conversation based on the original
-        let forked = ConversationRepo::create(conn, &CreateConversation {
-            title: Some(format!("{} (fork)", orig.title)),
-            model_id: Some(orig.model_id.clone()),
-            system_prompt: orig.system_prompt.clone(),
-            folder_id: orig.folder_id.clone(),
-            agent_mode: Some(orig.agent_mode),
-        })?;
+        let result = (|| -> AppResult<_> {
+            // Get the original conversation
+            let orig = ConversationRepo::get_by_id(conn, &conversation_id)?;
 
-        // Copy messages up to and including from_message_id
-        let messages = MessageRepo::list_by_conversation(conn, &conversation_id)?;
-        for msg in &messages {
-            MessageRepo::create(conn, &CreateMessage {
-                conversation_id: forked.id.clone(),
-                parent_id: None,
-                role: msg.role.clone(),
-                content: msg.content.clone(),
-                model_used: msg.model_used.clone(),
-                tokens_in: Some(msg.tokens_in),
-                tokens_out: Some(msg.tokens_out),
-                cost: Some(msg.cost),
-                thinking_content: msg.thinking_content.clone(),
-                thinking_duration_ms: Some(msg.thinking_duration_ms.unwrap_or(0)),
-                attachments: None,
-                tool_calls: None,
+            // Create a new conversation based on the original
+            let forked = ConversationRepo::create(conn, &CreateConversation {
+                title: Some(format!("{} (fork)", orig.title)),
+                model_id: Some(orig.model_id.clone()),
+                system_prompt: orig.system_prompt.clone(),
+                folder_id: orig.folder_id.clone(),
+                agent_mode: Some(orig.agent_mode),
             })?;
-            // Stop after copying the target message
-            if msg.id == from_message_id {
-                break;
+
+            // Copy messages up to and including from_message_id
+            let messages = MessageRepo::list_by_conversation(conn, &conversation_id)?;
+            let mut found = false;
+            for msg in &messages {
+                MessageRepo::create(conn, &CreateMessage {
+                    conversation_id: forked.id.clone(),
+                    parent_id: None,
+                    role: msg.role.clone(),
+                    content: msg.content.clone(),
+                    model_used: msg.model_used.clone(),
+                    tokens_in: Some(msg.tokens_in),
+                    tokens_out: Some(msg.tokens_out),
+                    cost: Some(msg.cost),
+                    thinking_content: msg.thinking_content.clone(),
+                    thinking_duration_ms: Some(msg.thinking_duration_ms.unwrap_or(0)),
+                    attachments: None,
+                    tool_calls: None,
+                })?;
+                if msg.id == from_message_id {
+                    found = true;
+                    break;
+                }
+            }
+
+            if !found {
+                return Err(crate::error::AppError::NotFound(format!(
+                    "Message '{}' not found in conversation", from_message_id
+                )));
+            }
+
+            Ok(forked)
+        })();
+
+        match result {
+            Ok(forked) => {
+                conn.execute_batch("COMMIT")?;
+                Ok(forked)
+            }
+            Err(e) => {
+                let _ = conn.execute_batch("ROLLBACK");
+                Err(e)
             }
         }
-
-        Ok(forked)
     })
 }
 

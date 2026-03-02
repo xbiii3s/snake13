@@ -33,11 +33,18 @@ export function ChatWindow() {
     renderedCount,
   } = useVirtualMessages(messages, scrollRef);
 
-  // Auto-scroll to bottom when new messages or streaming content arrives
+  // Auto-scroll to bottom when new messages or streaming content arrives (RAF-throttled)
+  const rafRef = useRef<number>(0);
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    });
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
   }, [messages.length, isStreaming, streamingContent]);
 
   if (!activeConversationId) {

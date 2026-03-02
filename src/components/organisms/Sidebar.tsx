@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useChatStore } from "@/stores/chatStore";
 import { useTabStore } from "@/stores/tabStore";
 import {
@@ -55,19 +55,18 @@ export function Sidebar() {
     return map;
   }, [filteredConversations]);
 
-  useEffect(() => {
-    loadConversations();
-    loadFolders();
-  }, [loadConversations]);
-
-  const loadFolders = async () => {
+  const loadFolders = useCallback(async () => {
     try {
       const list = await ipc.listFolders();
       setFolders(list);
     } catch {
       // Folders not available yet
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadFolders();
+  }, [loadFolders]);
 
   const handleCreateFolder = async () => {
     const name = prompt("请输入文件夹名称：");
@@ -100,7 +99,7 @@ export function Sidebar() {
       const safeName = (title ?? "conversation").replace(/[/\\?%*:|"<>]/g, "_").slice(0, 50);
       a.download = `${safeName}.${format === "json" ? "json" : "md"}`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (err) {
       console.error("Export failed:", err);
     }

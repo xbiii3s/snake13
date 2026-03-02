@@ -225,7 +225,7 @@ impl McpManager {
 
         if let Some(error) = response.error {
             return Err(AppError::Api {
-                status: error.code as u16,
+                status: if error.code < 0 || error.code > 65535 { 500 } else { error.code as u16 },
                 message: error.message,
             });
         }
