@@ -3,7 +3,7 @@ import { useChatStore } from "@/stores/chatStore";
 import { useTabStore } from "@/stores/tabStore";
 import {
   Plus, Search, MessageSquare, Trash2, Pin, FolderOpen, FolderPlus,
-  Download, Upload, MoreHorizontal, ChevronRight, ChevronDown,
+  Download, Upload, MoreHorizontal, ChevronRight, ChevronDown, Home,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import * as ipc from "@/lib/ipc";
@@ -15,8 +15,10 @@ export function Sidebar() {
   const loadConversations = useChatStore((s) => s.loadConversations);
   const createConversation = useChatStore((s) => s.createConversation);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
+  const clearActiveConversation = useChatStore((s) => s.clearActiveConversation);
   const deleteConversation = useChatStore((s) => s.deleteConversation);
   const openTab = useTabStore((s) => s.openTab);
+  const clearActiveTab = useTabStore((s) => s.clearActiveTab);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -124,6 +126,11 @@ export function Sidebar() {
     input.click();
   };
 
+  const handleGoHome = () => {
+    clearActiveConversation();
+    clearActiveTab();
+  };
+
   const handleConvClick = (id: string, title: string) => {
     setActiveConversation(id);
     openTab(id, title);
@@ -195,14 +202,21 @@ export function Sidebar() {
 
   return (
     <aside className="w-[260px] bg-bg-secondary border-r border-border flex flex-col flex-shrink-0">
-      {/* Header */}
+      {/* Header — clickable to go home */}
       <div
         className="h-[52px] flex items-center px-4 border-b border-border"
         data-tauri-drag-region
       >
-        <span className="text-sm font-semibold text-accent pl-16">
-          Claude Desktop Pro
-        </span>
+        <button
+          onClick={handleGoHome}
+          className="flex items-center gap-2 pl-16 group"
+          title="回到首页 (⌘⇧H)"
+        >
+          <Home size={14} className="text-text-muted group-hover:text-accent transition-colors" />
+          <span className="text-sm font-semibold text-accent group-hover:text-accent-hover transition-colors">
+            Claude Desktop Pro
+          </span>
+        </button>
       </div>
 
       {/* New Chat + Search */}

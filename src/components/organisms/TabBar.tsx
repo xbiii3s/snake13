@@ -10,6 +10,7 @@ export function TabBar() {
   const closeTab = useTabStore((s) => s.closeTab);
 
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
+  const clearActiveConversation = useChatStore((s) => s.clearActiveConversation);
   const createConversation = useChatStore((s) => s.createConversation);
   const openTab = useTabStore((s) => s.openTab);
 
@@ -18,6 +19,14 @@ export function TabBar() {
   const handleTabClick = (tab: (typeof tabs)[0]) => {
     setActiveTab(tab.id);
     setActiveConversation(tab.conversationId);
+  };
+
+  const handleCloseTab = (tabId: string) => {
+    const remaining = tabs.filter((t) => t.id !== tabId);
+    closeTab(tabId);
+    if (remaining.length === 0) {
+      clearActiveConversation();
+    }
   };
 
   const handleNewTab = async () => {
@@ -42,7 +51,7 @@ export function TabBar() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              closeTab(tab.id);
+              handleCloseTab(tab.id);
             }}
             className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-bg-hover rounded transition-all"
           >

@@ -21,7 +21,9 @@ function App() {
 
   const loadConversations = useChatStore((s) => s.loadConversations);
   const createConversation = useChatStore((s) => s.createConversation);
+  const clearActiveConversation = useChatStore((s) => s.clearActiveConversation);
   const tabs = useTabStore((s) => s.tabs);
+  const clearActiveTab = useTabStore((s) => s.clearActiveTab);
 
   // Load conversations on mount
   useEffect(() => {
@@ -67,6 +69,13 @@ function App() {
         setSpotlightOpen((prev) => !prev);
         return;
       }
+      // ⌘+Shift+H → Go Home
+      if (e.metaKey && e.shiftKey && e.key === "h") {
+        e.preventDefault();
+        clearActiveConversation();
+        clearActiveTab();
+        return;
+      }
       // ⌘+N → New conversation
       if (e.metaKey && e.key === "n") {
         e.preventDefault();
@@ -87,7 +96,7 @@ function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [settingsOpen, spotlightOpen, setSettingsOpen, createConversation]);
+  }, [settingsOpen, spotlightOpen, setSettingsOpen, createConversation, clearActiveConversation, clearActiveTab]);
 
   // Demo artifact for testing (will be driven by message content in production)
   useEffect(() => {

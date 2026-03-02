@@ -29,6 +29,7 @@ interface ChatState {
   deleteConversation: (id: string) => Promise<void>;
   sendMessage: (content: string, modelId: string, enableThinking?: boolean) => Promise<void>;
   cancelStream: () => void;
+  clearActiveConversation: () => void;
   updateConversationTitle: (id: string, title: string) => Promise<void>;
 }
 
@@ -237,6 +238,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   cancelStream: () => {
     ipc.chatCancel().catch((err) => console.error("Cancel failed:", err));
     set({ isStreaming: false });
+  },
+
+  clearActiveConversation: () => {
+    if (get().isStreaming) {
+      get().cancelStream();
+    }
+    set({ activeConversationId: null });
   },
 
   updateConversationTitle: async (id, title) => {

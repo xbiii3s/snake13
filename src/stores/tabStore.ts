@@ -13,6 +13,7 @@ interface TabState {
   openTab: (conversationId: string, title: string) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
+  clearActiveTab: () => void;
   updateTabTitle: (conversationId: string, title: string) => void;
 }
 
@@ -47,6 +48,8 @@ export const useTabStore = create<TabState>()((set, get) => ({
   },
 
   setActiveTab: (tabId) => set({ activeTabId: tabId }),
+
+  clearActiveTab: () => set({ activeTabId: null }),
 
   updateTabTitle: (conversationId, title) => {
     set((s) => ({
