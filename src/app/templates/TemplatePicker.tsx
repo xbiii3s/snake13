@@ -60,7 +60,7 @@ export function TemplatePicker({ onSelect }: Props) {
   ];
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full max-w-lg mx-auto">
       <h3 className="text-sm font-medium text-text-secondary mb-3">从模板开始</h3>
       <div className="grid grid-cols-2 gap-2">
         {allTemplates.map((tmpl) => {

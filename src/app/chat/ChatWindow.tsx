@@ -112,8 +112,8 @@ function EmptyState() {
   const createConversation = useChatStore((s) => s.createConversation);
 
   return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="text-center space-y-4 max-w-md">
+    <div className="flex-1 flex items-center justify-center px-6">
+      <div className="text-center space-y-4 w-full max-w-lg">
         <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto">
           <MessageSquare size={28} className="text-accent" />
         </div>
