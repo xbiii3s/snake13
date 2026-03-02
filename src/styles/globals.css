@@ -44,12 +44,9 @@
 }
 
 /* ========== Base Styles ========== */
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* Note: Tailwind v4 preflight (@layer base) already resets margin/padding/box-sizing.
+   An unlayered `* {}` reset would override ALL @layer utilities (py-2, px-3, mb-4 etc.)
+   because unlayered CSS always beats @layer CSS in the cascade. */
 
 html, body, #root {
   height: 100%;
