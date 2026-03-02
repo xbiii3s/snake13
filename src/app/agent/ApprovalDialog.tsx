@@ -30,7 +30,7 @@ export function ApprovalDialog() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 px-5 py-4 border-t border-border">
+        <div className="flex items-center flex-wrap gap-2 px-5 py-4 border-t border-border">
           <button
             onClick={() => decidePermission(pending.toolName, "allow")}
             className="flex items-center gap-1.5 px-3 py-2 bg-success/20 text-success text-xs font-medium rounded-[var(--radius-sm)] hover:bg-success/30 transition-colors"

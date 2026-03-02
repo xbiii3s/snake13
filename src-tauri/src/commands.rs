@@ -27,14 +27,22 @@ fn build_proxy_url(scheme: &str, host: &str, port: &str, username: Option<&str>,
     }
 }
 
-/// Allowed settings keys to prevent arbitrary key injection from frontend
+/// Allowed settings keys to prevent arbitrary key injection from frontend.
+/// Keys must match exactly what the frontend uses in ipc.setSetting() calls.
 const ALLOWED_SETTINGS_KEYS: &[&str] = &[
+    // Appearance
     "font_size", "show_tokens", "theme", "language",
+    // Proxy
     "proxy_type", "proxy_host", "proxy_port", "proxy_username", "proxy_password", "proxy_url",
-    "default_model", "auto_start", "send_shortcut",
-    "agent_clipboard_read", "agent_clipboard_write", "agent_notification_send",
-    "agent_shell_exec", "agent_fs_read", "agent_fs_write", "agent_fs_search",
-    "agent_web_fetch", "agent_web_search", "agent_code_interpret",
+    // API & General
+    "default_model", "auto_start", "send_shortcut", "api_endpoint",
+    // Agent workspace
+    "agent_workspace",
+    // Agent tool permissions (tool_perm_<key> format used by AgentConfig frontend)
+    "tool_perm_fs_read", "tool_perm_fs_write", "tool_perm_fs_list", "tool_perm_fs_search",
+    "tool_perm_shell_exec", "tool_perm_web_search", "tool_perm_web_fetch",
+    "tool_perm_clipboard_read", "tool_perm_clipboard_write", "tool_perm_notification_send",
+    "tool_perm_code_interpret",
 ];
 
 /// Known Claude model identifiers

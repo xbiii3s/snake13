@@ -80,7 +80,7 @@ export function ProxyConfig() {
               <button
                 key={type}
                 onClick={() => setProxyType(type)}
-                className={`py-2 text-sm rounded-[var(--radius-sm)] border transition-colors ${
+                className={`py-2 px-1 text-sm text-center rounded-[var(--radius-sm)] border transition-colors ${
                   proxyType === type
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border bg-bg-elevated text-text-secondary hover:border-accent/30"

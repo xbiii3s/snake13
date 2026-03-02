@@ -40,7 +40,7 @@ export function SettingsPanel({ onClose }: Props) {
       className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-bg-primary border border-border rounded-[var(--radius-lg)] w-[700px] h-[500px] flex overflow-hidden shadow-2xl">
+      <div className="bg-bg-primary border border-border rounded-[var(--radius-lg)] w-[700px] h-[500px] max-h-[85vh] flex overflow-hidden shadow-2xl">
         {/* Settings sidebar */}
         <div className="w-[180px] bg-bg-secondary border-r border-border p-3 space-y-1">
           <div className="flex items-center justify-between mb-4 px-2">
@@ -73,7 +73,7 @@ export function SettingsPanel({ onClose }: Props) {
         </div>
 
         {/* Settings content */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-6 overflow-y-auto overflow-x-hidden">
           {activeTab === "api" && <ApiConfig />}
           {activeTab === "proxy" && <ProxyConfig />}
           {activeTab === "appearance" && <AppearanceConfig />}

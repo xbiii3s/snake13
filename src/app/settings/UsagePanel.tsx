@@ -122,41 +122,41 @@ export function UsagePanel() {
       {/* Total Summary Cards */}
       {totalUsage && (
         <div className="grid grid-cols-3 gap-3 mb-5">
-          <div className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-3">
+          <div className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-3 min-w-0">
             <div className="flex items-center gap-1.5 text-text-muted mb-1">
-              <Zap size={12} />
-              <span className="text-xs">总 Token 数</span>
+              <Zap size={12} className="flex-shrink-0" />
+              <span className="text-xs truncate">总 Token 数</span>
             </div>
-            <div className="text-lg font-semibold text-text-primary">
+            <div className="text-lg font-semibold text-text-primary truncate">
               {formatTokenCount(totalUsage.total_input_tokens + totalUsage.total_output_tokens)}
             </div>
-            <div className="text-xs text-text-muted mt-0.5">
-              {formatTokenCount(totalUsage.total_input_tokens)} 输入 / {formatTokenCount(totalUsage.total_output_tokens)} 输出
+            <div className="text-[10px] text-text-muted mt-0.5 truncate">
+              {formatTokenCount(totalUsage.total_input_tokens)} 入 / {formatTokenCount(totalUsage.total_output_tokens)} 出
             </div>
           </div>
 
-          <div className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-3">
+          <div className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-3 min-w-0">
             <div className="flex items-center gap-1.5 text-text-muted mb-1">
-              <DollarSign size={12} />
-              <span className="text-xs">总费用</span>
+              <DollarSign size={12} className="flex-shrink-0" />
+              <span className="text-xs truncate">总费用</span>
             </div>
-            <div className="text-lg font-semibold text-accent">
+            <div className="text-lg font-semibold text-accent truncate">
               {formatCost(totalUsage.total_cost)}
             </div>
-            <div className="text-xs text-text-muted mt-0.5">
+            <div className="text-[10px] text-text-muted mt-0.5">
               累计
             </div>
           </div>
 
-          <div className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-3">
+          <div className="bg-bg-elevated border border-border rounded-[var(--radius-md)] p-3 min-w-0">
             <div className="flex items-center gap-1.5 text-text-muted mb-1">
-              <MessageSquare size={12} />
-              <span className="text-xs">消息数</span>
+              <MessageSquare size={12} className="flex-shrink-0" />
+              <span className="text-xs truncate">消息数</span>
             </div>
-            <div className="text-lg font-semibold text-text-primary">
+            <div className="text-lg font-semibold text-text-primary truncate">
               {totalUsage.message_count.toLocaleString()}
             </div>
-            <div className="text-xs text-text-muted mt-0.5">
+            <div className="text-[10px] text-text-muted mt-0.5">
               总请求
             </div>
           </div>
@@ -205,12 +205,12 @@ export function UsagePanel() {
                       {formatTokenCount(totalTokens)}
                     </span>
                   </div>
-                  <div className="flex gap-4 mt-1.5">
-                    <span className="text-xs text-text-muted">
-                      输入：{formatTokenCount(model.total_input_tokens)}
+                  <div className="flex gap-3 mt-1.5">
+                    <span className="text-[11px] text-text-muted">
+                      入：{formatTokenCount(model.total_input_tokens)}
                     </span>
-                    <span className="text-xs text-text-muted">
-                      输出：{formatTokenCount(model.total_output_tokens)}
+                    <span className="text-[11px] text-text-muted">
+                      出：{formatTokenCount(model.total_output_tokens)}
                     </span>
                   </div>
                 </div>

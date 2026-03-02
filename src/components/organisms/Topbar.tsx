@@ -67,9 +67,8 @@ export function Topbar() {
         </button>
 
         {/* Connection status */}
-        <div className="flex items-center gap-1.5" title="连接状态">
+        <div className="flex items-center gap-1" title="连接正常" aria-label="连接状态">
           <Wifi size={12} className="text-success" />
-          <span className="w-1.5 h-1.5 rounded-full bg-success" />
         </div>
 
         {/* Settings button */}

@@ -38,14 +38,17 @@ export function AppearanceConfig() {
         <div>
           <label className="text-sm text-text-secondary block mb-2">主题</label>
           <div className="grid grid-cols-3 gap-2">
-            <button className="py-3 text-sm rounded-[var(--radius-sm)] border border-accent bg-accent/10 text-accent">
-              深色
+            <button className="py-2.5 px-2 rounded-[var(--radius-sm)] border border-accent bg-accent/10 text-accent flex flex-col items-center gap-0.5">
+              <span className="text-sm">深色</span>
+              <span className="text-[10px]">当前</span>
             </button>
-            <button className="py-3 text-sm rounded-[var(--radius-sm)] border border-border bg-bg-elevated text-text-muted cursor-not-allowed opacity-50">
-              浅色（即将推出）
+            <button className="py-2.5 px-2 rounded-[var(--radius-sm)] border border-border bg-bg-elevated text-text-muted cursor-not-allowed opacity-50 flex flex-col items-center gap-0.5">
+              <span className="text-sm">浅色</span>
+              <span className="text-[10px]">即将推出</span>
             </button>
-            <button className="py-3 text-sm rounded-[var(--radius-sm)] border border-border bg-bg-elevated text-text-muted cursor-not-allowed opacity-50">
-              跟随系统（即将推出）
+            <button className="py-2.5 px-2 rounded-[var(--radius-sm)] border border-border bg-bg-elevated text-text-muted cursor-not-allowed opacity-50 flex flex-col items-center gap-0.5">
+              <span className="text-sm">跟随系统</span>
+              <span className="text-[10px]">即将推出</span>
             </button>
           </div>
         </div>
