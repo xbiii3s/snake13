@@ -204,7 +204,7 @@ pub async fn chat_send(
         }
 
         // Stream real API response
-        stream::claude_stream(
+        let result = stream::claude_stream(
             on_event.clone(),
             &api_key,
             &model_id,
@@ -217,7 +217,7 @@ pub async fn chat_send(
         )
         .await?;
 
-        // Save assistant message placeholder (content was streamed)
+        // Save assistant message with accumulated streamed content
         let assistant_msg = state.db.with_conn(|conn| {
             MessageRepo::create(
                 conn,
@@ -225,13 +225,13 @@ pub async fn chat_send(
                     conversation_id: conversation_id.clone(),
                     parent_id: Some(user_msg.id.clone()),
                     role: "assistant".to_string(),
-                    content: "[Streamed response]".to_string(),
+                    content: result.content,
                     model_used: Some(model_id.clone()),
-                    tokens_in: None,
-                    tokens_out: None,
-                    cost: None,
-                    thinking_content: None,
-                    thinking_duration_ms: None,
+                    tokens_in: Some(result.input_tokens as i64),
+                    tokens_out: Some(result.output_tokens as i64),
+                    cost: Some(result.cost),
+                    thinking_content: result.thinking_content,
+                    thinking_duration_ms: result.thinking_duration_ms,
                     attachments: None,
                     tool_calls: None,
                 },
@@ -241,9 +241,9 @@ pub async fn chat_send(
         Ok(assistant_msg)
     } else {
         // Fall back to mock stream
-        stream::mock_stream(on_event.clone(), &model_id, &content, enable_thinking).await?;
+        let result = stream::mock_stream(on_event.clone(), &model_id, &content, enable_thinking).await?;
 
-        // Save assistant message (with mock content)
+        // Save assistant message with accumulated mock content
         let assistant_msg = state.db.with_conn(|conn| {
             MessageRepo::create(
                 conn,
@@ -251,17 +251,13 @@ pub async fn chat_send(
                     conversation_id: conversation_id.clone(),
                     parent_id: Some(user_msg.id.clone()),
                     role: "assistant".to_string(),
-                    content: "[Mock response - see stream]".to_string(),
+                    content: result.content,
                     model_used: Some(model_id.clone()),
-                    tokens_in: Some(150),
-                    tokens_out: Some(200),
-                    cost: Some(0.001),
-                    thinking_content: if enable_thinking {
-                        Some("Mock thinking content".to_string())
-                    } else {
-                        None
-                    },
-                    thinking_duration_ms: if enable_thinking { Some(2500) } else { None },
+                    tokens_in: Some(result.input_tokens as i64),
+                    tokens_out: Some(result.output_tokens as i64),
+                    cost: Some(result.cost),
+                    thinking_content: result.thinking_content,
+                    thinking_duration_ms: result.thinking_duration_ms,
                     attachments: None,
                     tool_calls: None,
                 },

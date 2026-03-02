@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, type KeyboardEvent, type DragEvent } from "react";
+import { useState, useRef, useCallback, useEffect, type KeyboardEvent, type DragEvent } from "react";
 import { useChatStore } from "@/stores/chatStore";
 import { useAgentStore } from "@/stores/agentStore";
 import { MODELS } from "@/types/model";
@@ -41,6 +41,14 @@ export function MessageInput() {
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Close model picker on outside click
+  useEffect(() => {
+    if (!showModelPicker) return;
+    const handleClick = () => setShowModelPicker(false);
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [showModelPicker]);
 
   const agentEnabled = useAgentStore((s) => s.enabled);
   const setAgentEnabled = useAgentStore((s) => s.setEnabled);
@@ -133,7 +141,7 @@ export function MessageInput() {
 
   return (
     <div
-      className={`p-4 border-t transition-colors ${isDragging ? "border-accent bg-accent/5" : "border-border"}`}
+      className={`p-4 border-t transition-colors relative ${isDragging ? "border-accent bg-accent/5" : "border-border"}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -236,7 +244,7 @@ export function MessageInput() {
             {/* Model selector */}
             <div className="relative">
               <button
-                onClick={() => setShowModelPicker(!showModelPicker)}
+                onClick={(e) => { e.stopPropagation(); setShowModelPicker(!showModelPicker); }}
                 className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors px-2 py-1 rounded hover:bg-bg-hover"
               >
                 <span>{selectedModel.name}</span>

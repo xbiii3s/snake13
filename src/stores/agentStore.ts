@@ -127,9 +127,12 @@ export const useAgentStore = create<AgentState>()((set, get) => ({
     const pending = get().pendingApproval;
     set({ pendingApproval: null });
 
-    // If approved, re-execute the tool
+    // If approved, remove the old pending entry and re-execute the tool
     if (pending && (decision === "allow" || decision === "allow_always")) {
-      get().executeTool(pending.toolName, pending.input);
+      set((s) => ({
+        activeCalls: s.activeCalls.filter((c) => c.id !== pending.id),
+      }));
+      await get().executeTool(pending.toolName, pending.input);
     } else if (pending) {
       set((s) => ({
         activeCalls: s.activeCalls.map((c) =>
@@ -172,8 +175,9 @@ export const useAgentStore = create<AgentState>()((set, get) => ({
       // Execute all tools via the backend runtime
       const results = await ipc.agentExecuteTools(toolCalls);
 
-      // Update activeCalls with results
+      // Update activeCalls with results and reset isLooping
       set((s) => ({
+        isLooping: false,
         activeCalls: s.activeCalls.map((call) => {
           const result = results.find((r) => r.tool_use_id === call.id);
           if (!result) return call;

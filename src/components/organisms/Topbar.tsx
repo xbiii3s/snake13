@@ -65,7 +65,7 @@ export function Topbar() {
         </button>
 
         {/* Connection status */}
-        <div className="flex items-center gap-1.5" title="模拟模式（已连接）">
+        <div className="flex items-center gap-1.5" title="连接状态">
           <Wifi size={12} className="text-success" />
           <span className="w-1.5 h-1.5 rounded-full bg-success" />
         </div>

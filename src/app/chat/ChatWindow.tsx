@@ -19,6 +19,7 @@ export function ChatWindow() {
     s.activeConversationId ? (s.messages[s.activeConversationId] ?? EMPTY_MESSAGES) : EMPTY_MESSAGES,
   );
   const isStreaming = useChatStore((s) => s.isStreaming);
+  const streamingContent = useChatStore((s) => s.streaming.contentText);
   const agentCalls = useAgentStore((s) => s.activeCalls);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -37,7 +38,7 @@ export function ChatWindow() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length, isStreaming]);
+  }, [messages.length, isStreaming, streamingContent]);
 
   if (!activeConversationId) {
     return (

@@ -23,9 +23,13 @@ export function ArtifactPanel({ artifact }: Props) {
   if (!artifact) return null;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(artifact.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(artifact.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard write failed silently
+    }
   };
 
   const typeIcon = {
@@ -83,7 +87,7 @@ export function ArtifactPanel({ artifact }: Props) {
             srcDoc={artifact.content}
             title={artifact.title}
             className="w-full h-full border-0 bg-white"
-            sandbox="allow-scripts"
+            sandbox=""
           />
         ) : artifact.type === "svg" ? (
           <iframe

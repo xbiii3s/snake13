@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from "react";
 import { useChatStore } from "@/stores/chatStore";
+import * as ipc from "@/lib/ipc";
 import { Search, ArrowRight, MessageSquare } from "lucide-react";
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
 
 export function SpotlightWindow({ onClose }: Props) {
   const [query, setQuery] = useState("");
+  const [defaultModel, setDefaultModel] = useState("claude-sonnet-4-5");
   const inputRef = useRef<HTMLInputElement>(null);
   const createConversation = useChatStore((s) => s.createConversation);
   const sendMessage = useChatStore((s) => s.sendMessage);
@@ -18,6 +20,12 @@ export function SpotlightWindow({ onClose }: Props) {
     inputRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    ipc.getSetting("default_model").then((model) => {
+      if (model) setDefaultModel(model);
+    }).catch(() => {});
+  }, []);
+
   const handleSubmit = async () => {
     const trimmed = query.trim();
     if (!trimmed) return;
@@ -25,7 +33,7 @@ export function SpotlightWindow({ onClose }: Props) {
     // Create new conversation and send message
     const convId = await createConversation();
     await setActiveConversation(convId);
-    sendMessage(trimmed, "claude-sonnet-4-5", false);
+    sendMessage(trimmed, defaultModel, false);
     onClose();
   };
 

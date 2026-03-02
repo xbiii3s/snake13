@@ -88,13 +88,24 @@ pub struct Usage {
     pub cost: f64,
 }
 
+/// Accumulated results from a stream for persistence
+#[derive(Debug, Clone, Default)]
+pub struct StreamResult {
+    pub content: String,
+    pub thinking_content: Option<String>,
+    pub thinking_duration_ms: Option<i64>,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cost: f64,
+}
+
 /// Generate a mock streaming response for development
 pub async fn mock_stream(
     channel: tauri::ipc::Channel<StreamEvent>,
     model_id: &str,
     _user_message: &str,
     enable_thinking: bool,
-) -> crate::error::AppResult<()> {
+) -> crate::error::AppResult<StreamResult> {
     let gen = new_generation();
     let message_id = uuid::Uuid::now_v7().to_string();
 
@@ -173,7 +184,26 @@ pub async fn mock_stream(
         })
         .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
 
-    Ok(())
+    let thinking_text_full = "Let me analyze this question step by step.\n\n\
+            First, I need to consider the key aspects...\n\
+            The main points to address are:\n\
+            1. Understanding the context\n\
+            2. Identifying the core requirements\n\
+            3. Formulating a comprehensive response\n\n\
+            Based on my analysis, I can now provide a detailed answer.";
+
+    Ok(StreamResult {
+        content: response,
+        thinking_content: if enable_thinking {
+            Some(thinking_text_full.to_string())
+        } else {
+            None
+        },
+        thinking_duration_ms: if enable_thinking { Some(2500) } else { None },
+        input_tokens,
+        output_tokens,
+        cost,
+    })
 }
 
 // ===================== Claude API Types =====================
@@ -286,7 +316,7 @@ pub async fn claude_stream(
     tools: Option<Value>,
     max_tokens: Option<u32>,
     proxy_url: Option<&str>,
-) -> crate::error::AppResult<()> {
+) -> crate::error::AppResult<StreamResult> {
     let gen = new_generation();
 
     let max_tokens = max_tokens.unwrap_or(8192);
@@ -358,6 +388,9 @@ pub async fn claude_stream(
     let mut output_tokens: u64 = 0;
     let mut thinking_start_time: Option<Instant> = None;
     let mut current_block_type = String::new();
+    let mut accumulated_content = String::new();
+    let mut accumulated_thinking = String::new();
+    let mut thinking_duration_ms: Option<i64> = None;
 
     let send = |event: StreamEvent| -> crate::error::AppResult<()> {
         channel
@@ -427,11 +460,13 @@ pub async fn claude_stream(
                             match block_delta.delta.delta_type.as_str() {
                                 "thinking_delta" => {
                                     if let Some(text) = block_delta.delta.thinking {
+                                        accumulated_thinking.push_str(&text);
                                         send(StreamEvent::ThinkingDelta { text })?;
                                     }
                                 }
                                 "text_delta" => {
                                     if let Some(text) = block_delta.delta.text {
+                                        accumulated_content.push_str(&text);
                                         send(StreamEvent::ContentDelta { text })?;
                                     }
                                 }
@@ -451,6 +486,7 @@ pub async fn claude_stream(
                                     .map(|t| t.elapsed().as_millis() as u64)
                                     .unwrap_or(0);
                                 thinking_start_time = None;
+                                thinking_duration_ms = Some(duration_ms as i64);
                                 send(StreamEvent::ThinkingStop { duration_ms })?;
                             }
                             "text" => {
@@ -505,7 +541,20 @@ pub async fn claude_stream(
         }
     }
 
-    Ok(())
+    let cost = calculate_cost(model_id, input_tokens, output_tokens);
+
+    Ok(StreamResult {
+        content: accumulated_content,
+        thinking_content: if accumulated_thinking.is_empty() {
+            None
+        } else {
+            Some(accumulated_thinking)
+        },
+        thinking_duration_ms,
+        input_tokens,
+        output_tokens,
+        cost,
+    })
 }
 
 fn get_mock_response(model_id: &str) -> String {

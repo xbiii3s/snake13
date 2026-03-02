@@ -46,8 +46,12 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   lastUsage: null,
 
   loadConversations: async () => {
-    const conversations = await ipc.listConversations();
-    set({ conversations });
+    try {
+      const conversations = await ipc.listConversations();
+      set({ conversations });
+    } catch (err) {
+      console.error("Failed to load conversations:", err);
+    }
   },
 
   createConversation: async (input) => {
@@ -131,38 +135,49 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }));
 
     const handleEvent = (event: StreamEvent) => {
-      const state = get();
       switch (event.type) {
+        case "message_start":
+          // Capture the real backend message ID for later use
+          break;
         case "thinking_start":
-          set({ streaming: { ...state.streaming, isThinking: true } });
+          set((s) => ({ streaming: { ...s.streaming, isThinking: true } }));
           break;
         case "thinking_delta":
-          set({
+          set((s) => ({
             streaming: {
-              ...state.streaming,
-              thinkingText: state.streaming.thinkingText + event.text,
+              ...s.streaming,
+              thinkingText: s.streaming.thinkingText + event.text,
             },
-          });
+          }));
           break;
         case "thinking_stop":
-          set({
+          set((s) => ({
             streaming: {
-              ...state.streaming,
+              ...s.streaming,
               isThinking: false,
               thinkingDuration: event.duration_ms,
             },
-          });
+          }));
           break;
         case "content_delta":
-          set({
+          set((s) => ({
             streaming: {
-              ...state.streaming,
-              contentText: state.streaming.contentText + event.text,
+              ...s.streaming,
+              contentText: s.streaming.contentText + event.text,
             },
-          });
+          }));
           break;
         case "message_stop":
           set({ lastUsage: event.usage });
+          break;
+        case "error":
+          set((s) => ({
+            isStreaming: false,
+            streaming: {
+              ...s.streaming,
+              contentText: s.streaming.contentText + `\n\n**错误**: ${event.error.message}`,
+            },
+          }));
           break;
       }
     };
@@ -176,30 +191,15 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         onEvent: handleEvent,
       });
 
-      // Finalize: save the streamed content as a proper message
+      // Refresh messages from backend to get real DB IDs
+      const backendMessages = await ipc.listMessages(convId);
       const { streaming, lastUsage } = get();
-      const assistantMsg: Message = {
-        id: `msg-${Date.now()}`,
-        conversation_id: convId,
-        parent_id: tempUserMsg.id,
-        role: "assistant",
-        content: streaming.contentText,
-        model_used: modelId,
-        tokens_in: lastUsage?.input_tokens ?? 0,
-        tokens_out: lastUsage?.output_tokens ?? 0,
-        cost: lastUsage?.cost ?? 0,
-        thinking_content: streaming.thinkingText || null,
-        thinking_duration_ms: streaming.thinkingDuration || null,
-        attachments: "[]",
-        tool_calls: "[]",
-        created_at: new Date().toISOString(),
-      };
 
       set((state) => ({
         isStreaming: false,
         messages: {
           ...state.messages,
-          [convId]: [...(state.messages[convId] ?? []), assistantMsg],
+          [convId]: backendMessages,
         },
       }));
 
@@ -235,16 +235,20 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   },
 
   cancelStream: () => {
-    ipc.chatCancel();
+    ipc.chatCancel().catch((err) => console.error("Cancel failed:", err));
     set({ isStreaming: false });
   },
 
   updateConversationTitle: async (id, title) => {
-    await ipc.updateConversation(id, { title });
-    set((state) => ({
-      conversations: state.conversations.map((c) =>
-        c.id === id ? { ...c, title } : c,
-      ),
-    }));
+    try {
+      await ipc.updateConversation(id, { title });
+      set((state) => ({
+        conversations: state.conversations.map((c) =>
+          c.id === id ? { ...c, title } : c,
+        ),
+      }));
+    } catch (err) {
+      console.error("Failed to update title:", err);
+    }
   },
 }));

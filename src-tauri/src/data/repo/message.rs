@@ -124,6 +124,21 @@ impl MessageRepo {
 
     /// Full-text search across all messages
     pub fn search(conn: &Connection, query: &str, limit: i64) -> AppResult<Vec<SearchResult>> {
+        // Escape FTS5 special characters by wrapping each token in double quotes
+        let escaped_query: String = query
+            .split_whitespace()
+            .map(|token| {
+                let clean = token.replace('"', "");
+                if clean.is_empty() { String::new() } else { format!("\"{}\"", clean) }
+            })
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        if escaped_query.is_empty() {
+            return Ok(Vec::new());
+        }
+
         let mut stmt = conn.prepare(
             "SELECT m.id, m.conversation_id, c.title, m.role,
                     snippet(messages_fts, 0, '<<', '>>', '...', 48) as snippet,
@@ -136,7 +151,7 @@ impl MessageRepo {
              LIMIT ?2",
         )?;
 
-        let rows = stmt.query_map(params![query, limit], |row| {
+        let rows = stmt.query_map(params![escaped_query, limit], |row| {
             Ok(SearchResult {
                 message_id: row.get(0)?,
                 conversation_id: row.get(1)?,
@@ -271,5 +286,16 @@ mod tests {
         let conn = test_connection();
         let result = MessageRepo::get_by_id(&conn, "nonexistent");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_fts_search_special_chars() {
+        let conn = test_connection();
+        let conv_id = create_test_conv(&conn);
+        MessageRepo::create(&conn, &user_msg(&conv_id, "Test with special chars")).unwrap();
+        // These should not crash
+        let _ = MessageRepo::search(&conn, "\"quoted\"", 10);
+        let _ = MessageRepo::search(&conn, "test*", 10);
+        let _ = MessageRepo::search(&conn, "test AND OR", 10);
     }
 }

@@ -82,8 +82,8 @@ export function AppearanceConfig() {
             }`}
           >
             <div
-              className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${
-                showTokens ? "left-5.5 translate-x-0.5" : "left-0.5"
+              className={`w-4 h-4 rounded-full bg-white absolute top-0.5 left-0.5 transition-transform ${
+                showTokens ? "translate-x-5" : "translate-x-0"
               }`}
             />
           </button>

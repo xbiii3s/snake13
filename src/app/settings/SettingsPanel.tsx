@@ -27,8 +27,19 @@ const TABS: Array<{ id: SettingsTab; label: string; icon: typeof Key }> = [
 export function SettingsPanel({ onClose }: Props) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("api");
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+    <div
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="bg-bg-primary border border-border rounded-[var(--radius-lg)] w-[700px] h-[500px] flex overflow-hidden shadow-2xl">
         {/* Settings sidebar */}
         <div className="w-[180px] bg-bg-secondary border-r border-border p-3 space-y-1">
@@ -249,8 +260,8 @@ function GeneralConfig() {
             }`}
           >
             <div
-              className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform ${
-                autoStart ? "left-5.5 translate-x-0.5" : "left-0.5"
+              className={`w-4 h-4 rounded-full bg-white absolute top-0.5 left-0.5 transition-transform ${
+                autoStart ? "translate-x-5" : "translate-x-0"
               }`}
             />
           </button>

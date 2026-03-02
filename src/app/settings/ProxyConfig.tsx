@@ -19,6 +19,7 @@ export function ProxyConfig() {
       const savedHost = await ipc.getSetting("proxy_host");
       const savedPort = await ipc.getSetting("proxy_port");
       const savedUser = await ipc.getSetting("proxy_username");
+      const savedPass = await ipc.getSetting("proxy_password");
       const validTypes: ProxyType[] = ["none", "http", "socks5", "system"];
       if (savedType && validTypes.includes(savedType as ProxyType)) {
         setProxyType(savedType as ProxyType);
@@ -26,6 +27,7 @@ export function ProxyConfig() {
       if (savedHost) setHost(savedHost);
       if (savedPort) setPort(savedPort);
       if (savedUser) setUsername(savedUser);
+      if (savedPass) setPassword(savedPass);
     })();
   }, []);
 
@@ -41,13 +43,22 @@ export function ProxyConfig() {
     await ipc.setSetting("proxy_host", host);
     await ipc.setSetting("proxy_port", port);
     await ipc.setSetting("proxy_username", username);
-    // Note: password stored via keychain in production
+    await ipc.setSetting("proxy_password", password);
 
-    // Also save constructed proxy_url for the backend
+    // Build proxy URL with auth if credentials provided
+    const buildProxyUrl = (scheme: string) => {
+      if (username && password) {
+        return `${scheme}://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}`;
+      } else if (username) {
+        return `${scheme}://${encodeURIComponent(username)}@${host}:${port}`;
+      }
+      return `${scheme}://${host}:${port}`;
+    };
+
     if (proxyType === "http" && host && port) {
-      await ipc.setSetting("proxy_url", `http://${host}:${port}`);
+      await ipc.setSetting("proxy_url", buildProxyUrl("http"));
     } else if (proxyType === "socks5" && host && port) {
-      await ipc.setSetting("proxy_url", `socks5://${host}:${port}`);
+      await ipc.setSetting("proxy_url", buildProxyUrl("socks5"));
     } else {
       await ipc.setSetting("proxy_url", "");
     }
@@ -98,7 +109,9 @@ export function ProxyConfig() {
               <div>
                 <label className="text-sm text-text-secondary block mb-1">端口</label>
                 <input
-                  type="text"
+                  type="number"
+                  min={1}
+                  max={65535}
                   value={port}
                   onChange={(e) => setPort(e.target.value)}
                   placeholder="1080"

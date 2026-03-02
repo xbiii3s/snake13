@@ -175,6 +175,14 @@ impl Default for PermissionManager {
     }
 }
 
+fn truncate_str(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        return s.to_string();
+    }
+    let truncated: String = s.chars().take(max_chars.saturating_sub(3)).collect();
+    format!("{truncated}...")
+}
+
 fn summarise_input(input: &Value) -> String {
     match input {
         Value::Object(map) => {
@@ -184,11 +192,11 @@ fn summarise_input(input: &Value) -> String {
                 .map(|(k, v)| {
                     let v_str = match v {
                         Value::String(s) => {
-                            if s.len() > 80 { format!("\"{}...\"", &s[..77]) } else { format!("\"{s}\"") }
+                            if s.chars().count() > 80 { format!("\"{}\"", truncate_str(s, 80)) } else { format!("\"{s}\"") }
                         }
                         other => {
                             let s = other.to_string();
-                            if s.len() > 80 { format!("{}...", &s[..77]) } else { s }
+                            if s.chars().count() > 80 { truncate_str(&s, 80) } else { s }
                         }
                     };
                     format!("{k}: {v_str}")

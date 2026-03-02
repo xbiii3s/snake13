@@ -23,6 +23,14 @@ export function Sidebar() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [showActions, setShowActions] = useState<string | null>(null);
 
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!showActions) return;
+    const handleClickOutside = () => setShowActions(null);
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [showActions]);
+
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) return conversations;
     const q = searchQuery.toLowerCase();
@@ -62,7 +70,7 @@ export function Sidebar() {
   };
 
   const handleCreateFolder = async () => {
-    const name = prompt("Folder name:");
+    const name = prompt("请输入文件夹名称：");
     if (!name?.trim()) return;
     await ipc.createFolder({ name: name.trim() });
     loadFolders();
@@ -82,14 +90,15 @@ export function Sidebar() {
     });
   };
 
-  const handleExport = async (convId: string, format: "json" | "markdown") => {
+  const handleExport = async (convId: string, format: "json" | "markdown", title?: string) => {
     try {
       const data = await ipc.exportConversation(convId, format);
       const blob = new Blob([data], { type: format === "json" ? "application/json" : "text/markdown" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `conversation.${format === "json" ? "json" : "md"}`;
+      const safeName = (title ?? "conversation").replace(/[/\\?%*:|"<>]/g, "_").slice(0, 50);
+      a.download = `${safeName}.${format === "json" ? "json" : "md"}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -154,7 +163,9 @@ export function Sidebar() {
         <button
           onClick={(e) => {
             e.stopPropagation();
-            deleteConversation(conv.id);
+            if (window.confirm("确定要删除此对话吗？")) {
+              deleteConversation(conv.id);
+            }
           }}
           className="p-1 text-text-muted hover:text-error transition-colors"
           title="删除"
@@ -167,13 +178,13 @@ export function Sidebar() {
       {showActions === conv.id && (
         <div className="absolute right-0 top-full mt-1 bg-bg-elevated border border-border rounded-[var(--radius-sm)] shadow-lg py-1 z-50 min-w-[140px]">
           <button
-            onClick={(e) => { e.stopPropagation(); handleExport(conv.id, "json"); }}
+            onClick={(e) => { e.stopPropagation(); handleExport(conv.id, "json", conv.title); }}
             className="w-full text-left px-3 py-1.5 text-xs hover:bg-bg-hover flex items-center gap-2"
           >
             <Download size={11} /> 导出 JSON
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); handleExport(conv.id, "markdown"); }}
+            onClick={(e) => { e.stopPropagation(); handleExport(conv.id, "markdown", conv.title); }}
             className="w-full text-left px-3 py-1.5 text-xs hover:bg-bg-hover flex items-center gap-2"
           >
             <Download size={11} /> 导出 Markdown
@@ -235,10 +246,12 @@ export function Sidebar() {
         {folders.length > 0 && (
           <div className="mb-2">
             {folders.filter((f) => !f.parent_id).map((folder) => (
-              <div key={folder.id}>
-                <button
+              <div key={folder.id} className="group">
+                <div
                   onClick={() => toggleFolder(folder.id)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-text-muted hover:text-text-secondary rounded transition-colors"
+                  role="button"
+                  tabIndex={0}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-text-muted hover:text-text-secondary rounded transition-colors cursor-pointer"
                 >
                   {expandedFolders.has(folder.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                   <FolderOpen size={12} />
@@ -246,13 +259,15 @@ export function Sidebar() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeleteFolder(folder.id);
+                      if (window.confirm("确定要删除此文件夹吗？")) {
+                        handleDeleteFolder(folder.id);
+                      }
                     }}
-                    className="p-0.5 opacity-0 group-hover:opacity-100 hover:text-error"
+                    className="p-0.5 opacity-0 group-hover:opacity-100 hover:text-error transition-opacity"
                   >
                     <Trash2 size={10} />
                   </button>
-                </button>
+                </div>
                 {expandedFolders.has(folder.id) && (
                   <div className="pl-4">
                     {(folderConversations.get(folder.id) ?? []).map(renderConv)}

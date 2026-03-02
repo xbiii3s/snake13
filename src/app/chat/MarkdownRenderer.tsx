@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import rehypeSanitize from "rehype-sanitize";
 import { Copy, Check } from "lucide-react";
 import { useState, type ComponentPropsWithoutRef } from "react";
 
@@ -8,10 +9,13 @@ interface Props {
   content: string;
 }
 
-function CodeBlock({ className, children, ...props }: ComponentPropsWithoutRef<"code">) {
+function CodeBlock({ className, children, node, ...props }: ComponentPropsWithoutRef<"code"> & { node?: { position?: unknown; parent?: { tagName?: string } } }) {
   const [copied, setCopied] = useState(false);
   const match = /language-(\w+)/.exec(className ?? "");
-  const isInline = !match;
+
+  // Check if this is truly inline code (not wrapped in <pre>)
+  // react-markdown passes inline code without a <pre> wrapper
+  const isInline = !className && typeof children === 'string' && !children.includes('\n');
 
   if (isInline) {
     return (
@@ -24,9 +28,11 @@ function CodeBlock({ className, children, ...props }: ComponentPropsWithoutRef<"
     );
   }
 
+  const language = match?.[1] ?? "text";
+
   const handleCopy = () => {
     const text = String(children).replace(/\n$/, "");
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -34,7 +40,7 @@ function CodeBlock({ className, children, ...props }: ComponentPropsWithoutRef<"
   return (
     <div className="relative group my-3">
       <div className="flex items-center justify-between bg-bg-secondary px-3 py-1.5 rounded-t-[var(--radius-sm)] border border-b-0 border-border">
-        <span className="text-xs text-text-muted font-mono">{match[1]}</span>
+        <span className="text-xs text-text-muted font-mono">{language}</span>
         <button
           onClick={handleCopy}
           className="text-text-muted hover:text-text-primary transition-colors p-1"
@@ -57,7 +63,7 @@ export function MarkdownRenderer({ content }: Props) {
     <div className="prose prose-invert max-w-none text-sm leading-relaxed">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
+        rehypePlugins={[rehypeHighlight, rehypeSanitize]}
         components={{
           code: CodeBlock,
           a: ({ href, children }) => (
